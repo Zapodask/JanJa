@@ -1,0 +1,32 @@
+appId: dev.pedrovitor.janja
+productName: JanJa
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**
+  - package.json
+# registra o janja:// no Windows: o botão "Abrir no JanJa" da página do convite abre o app na sala
+protocols:
+  - name: JanJa
+    schemes:
+      - janja
+# o GitHub Actions publica o instalador nas Releases; o app instalado se atualiza sozinho por elas
+publish:
+  provider: github
+  releaseType: release
+win:
+  target: nsis
+  artifactName: JanJa-Setup-${version}.${ext}
+nsis:
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  runAfterFinish: true
+mac:
+  target: dmg
+  extendInfo:
+    NSMicrophoneUsageDescription: O JanJa usa o microfone para voz na sala.
+linux:
+  target: AppImage
