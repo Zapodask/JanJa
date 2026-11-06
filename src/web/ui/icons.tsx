@@ -2,6 +2,12 @@ import type { ReactNode } from 'react'
 
 /** Ícones simples feitos à mão (viewBox 24, traço arredondado). */
 const PATHS = {
+  download: (
+    <>
+      <path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5" />
+      <path d="M5 19h14" />
+    </>
+  ),
   mic: (
     <>
       <rect x="9" y="3" width="6" height="11" rx="3" />

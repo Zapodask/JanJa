@@ -11,6 +11,8 @@ export const CONTROL_CHANNEL_ID = 7
 export const MAX_CONTROL_BYTES = 512
 export const HELPER_URL = 'ws://127.0.0.1:47800'
 export const HELPER_DOWNLOAD_URL = 'https://github.com/pedrohhope/JanJa/releases/latest'
+/** download direto do .exe da última versão (o GitHub redireciona para o arquivo) */
+export const HELPER_EXE_URL = 'https://github.com/pedrohhope/JanJa/releases/latest/download/janja-helper.exe'
 export const PANIC_SHORTCUT = 'Ctrl+Alt+Shift+P'
 
 const unit = z.number().min(0).max(1) // rejeita NaN e Infinity

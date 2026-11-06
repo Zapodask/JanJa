@@ -1,5 +1,5 @@
-import { useId, useState } from 'react'
-import { HELPER_DOWNLOAD_URL, PANIC_SHORTCUT } from '../../shared/control'
+import { useEffect, useId, useState } from 'react'
+import { HELPER_DOWNLOAD_URL, HELPER_EXE_URL, PANIC_SHORTCUT } from '../../shared/control'
 import { pickMonitor } from '../control/geometry'
 import type { HelperSnapshot, HelperStatus } from '../control/helperClient'
 import { isWholeScreen } from '../control/useControl'
@@ -34,6 +34,60 @@ export function HelperDownloadLink() {
     <a href={HELPER_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
       Baixar o JanJa Helper
     </a>
+  )
+}
+
+const isWindows = (): boolean => {
+  const uaData = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData
+  return /win/i.test(uaData?.platform ?? navigator.platform ?? '') || /Windows/.test(navigator.userAgent)
+}
+
+/** Procurando há um tempo sem achar: o helper provavelmente não está instalado ou aberto. */
+const NOT_FOUND_AFTER_MS = 3500
+
+function useNotFound(status: HelperStatus): boolean {
+  const [notFound, setNotFound] = useState(false)
+  useEffect(() => {
+    if (status !== 'procurando' && status !== 'erro') {
+      setNotFound(false)
+      return
+    }
+    const t = window.setTimeout(() => setNotFound(true), NOT_FOUND_AFTER_MS)
+    return () => window.clearTimeout(t)
+  }, [status])
+  return notFound
+}
+
+/** Passo a passo para quem ainda não tem o helper. A página segue procurando e conecta sozinha. */
+function InstallHelper() {
+  if (!isWindows()) {
+    return (
+      <div className="install-helper">
+        <p>
+          <strong>O JanJa Helper ainda é só para Windows.</strong> Daqui você pode assistir e controlar o PC de um amigo,
+          mas não ser controlado.
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="install-helper">
+      <p>
+        <strong>O JanJa Helper não está aberto neste PC.</strong> Ele é o programinha que deixa um amigo mexer no seu
+        mouse e teclado, só quando você permitir.
+      </p>
+      <a className="button primary wide" href={HELPER_EXE_URL} download>
+        <Icon name="download" size={18} /> Baixar para Windows
+      </a>
+      <ol>
+        <li>Abra o arquivo baixado (janja-helper.exe). Não precisa instalar.</li>
+        <li>
+          Se aparecer &quot;O Windows protegeu o computador&quot;, clique em <em>Mais informações</em> e depois em{' '}
+          <em>Executar assim mesmo</em>.
+        </li>
+        <li>Volte aqui: esta página encontra o helper sozinha.</li>
+      </ol>
+    </div>
   )
 }
 
@@ -72,6 +126,7 @@ function PairForm({ onPair, error }: { onPair: (code: string) => boolean; error?
 /** Estado do helper com o que a pessoa precisa fazer agora. Usado na barra lateral e no pedido. */
 export function HelperStatusBlock({ helper, onConnect, onDisconnect, onPair }: HelperActions) {
   const { status } = helper
+  const notFound = useNotFound(status)
   return (
     <div className="helper-block">
       <p className="helper-status">
@@ -80,6 +135,7 @@ export function HelperStatusBlock({ helper, onConnect, onDisconnect, onPair }: H
       </p>
       {status === 'precisa-parear' && <PairForm onPair={onPair} error={helper.pairError} />}
       {status === 'pronto' && helper.error && <p className="error">{helper.error}</p>}
+      {notFound && <InstallHelper />}
       <div className="helper-actions">
         {status === 'desligado' ? (
           <button className="wide" onClick={onConnect}>
@@ -87,11 +143,18 @@ export function HelperStatusBlock({ helper, onConnect, onDisconnect, onPair }: H
           </button>
         ) : (
           <button className="wide" onClick={onDisconnect}>
-            Desconectar
+            {notFound ? 'Parar de procurar' : 'Desconectar'}
           </button>
         )}
       </div>
-      {(status === 'desligado' || status === 'erro') && <HelperDownloadLink />}
+      {status === 'desligado' && (
+        <p className="helper-hint">
+          Ainda não tem?{' '}
+          <a href={HELPER_EXE_URL} download>
+            Baixar o helper
+          </a>
+        </p>
+      )}
     </div>
   )
 }

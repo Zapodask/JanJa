@@ -4,7 +4,12 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 
-pub const DEFAULT_ORIGINS: [&str; 2] = ["http://localhost:8787", "http://127.0.0.1:8787"];
+/// O site publicado já vem liberado, para ninguém precisar rodar --allow.
+pub const DEFAULT_ORIGINS: [&str; 3] = [
+    "https://janja.pvpswapedro123.workers.dev",
+    "http://localhost:8787",
+    "http://127.0.0.1:8787",
+];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Config {
@@ -151,7 +156,7 @@ mod tests {
         save(&p, &c).unwrap();
         assert_eq!(load(&p).unwrap(), c);
         std::fs::write(&p, "{}").unwrap();
-        assert_eq!(load(&p).unwrap().origins.len(), 2);
+        assert_eq!(load(&p).unwrap().origins.len(), DEFAULT_ORIGINS.len());
         let _ = std::fs::remove_dir_all(dir);
     }
 }

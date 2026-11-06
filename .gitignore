@@ -6,3 +6,6 @@ dist/
 *.tsbuildinfo
 .DS_Store
 .smoke/
+
+# arquivos que o app do Claude salva
+Claude outputs/

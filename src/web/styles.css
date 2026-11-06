@@ -315,6 +315,15 @@ select:hover { border-color: var(--dust); }
 .helper-status .dot.ok { background: var(--on); }
 .helper-status .dot.bad { background: var(--off); }
 .helper-status .dot.wait { background: var(--lamp); }
+.helper-hint { font-size: 13px; color: var(--dust); }
+.install-helper { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 12px; border: 1px solid var(--rug); border-radius: var(--r-panel); background: var(--wall); font-size: 13px; line-height: 1.45; animation: dd-in 0.16s var(--ease) both; }
+.install-helper strong { color: var(--paper); }
+.install-helper ol { margin: 0; padding-left: 18px; color: var(--dust); display: flex; flex-direction: column; gap: 4px; }
+a.button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: var(--r-ctl); font-weight: 700; text-decoration: none; }
+a.button.primary { background: var(--lamp); color: var(--wall); }
+a.button.primary:hover { background: var(--lamp-hi); transform: translateY(-1px); }
+a.button.wide { width: 100%; }
+@media (prefers-reduced-motion: reduce) { .install-helper { animation: none; } }
 .pair-form { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
 .pair-form input { flex: 1; min-width: 0; font-variant-numeric: tabular-nums; letter-spacing: 0.15em; }
 .pair-error { width: 100%; font-size: 13px; }
