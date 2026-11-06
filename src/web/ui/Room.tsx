@@ -5,6 +5,7 @@ import type { PeerView, Route } from '../rtc/PeerManager'
 import { useControl } from '../control/useControl'
 import { PRESETS, bitrateFor, presetById } from '../rtc/quality'
 import { getPrefs, rememberRoom, setPrefs, volumeKey } from '../storage'
+import { useAudioBlocked } from '../playback'
 import { playDoorbell, playKnock, playShareOn, setSoundSink } from '../sounds'
 import { canShareScreen, useRoom } from '../useRoom'
 import { Avatar } from './Avatar'
@@ -109,6 +110,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(() => getPrefs().sidebarOpen)
   const [showStats, setShowStats] = useState(() => getPrefs().showStats)
   const [soundsOn, setSoundsOn] = useState(() => getPrefs().sounds)
+  const audioBlocked = useAudioBlocked()
   const outputs = useOutputDevices()
   const link = roomUrl(location.origin, roomId)
   const canShare = canShareScreen()
@@ -258,7 +260,8 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   const tiles = useMemo(() => {
     const list: { id: string; label: string; stream: MediaStream; local?: boolean }[] = []
     if (state.screen) list.push({ id: 'me', label: `${name} (você)`, stream: state.screen, local: true })
-    for (const p of state.peers) if (p.screen) list.push({ id: p.id, label: p.name, stream: p.screen })
+    // só vira TV quando a imagem chegou (o áudio da tela pode chegar antes)
+    for (const p of state.peers) if (p.screen && p.screen.getVideoTracks().length > 0) list.push({ id: p.id, label: p.name, stream: p.screen })
     return list
   }, [state.screen, state.peers, name])
 
@@ -455,6 +458,12 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
           </button>
         )}
 
+        {audioBlocked && (
+          <div className="banner sound-blocked" role="status">
+            <Icon name="speaker" size={18} />
+            <span>O navegador pausou o som da sala. Clique em qualquer lugar para ouvir.</span>
+          </div>
+        )}
         {state.status === 'caiu' && (
           <div className="banner">
             <span>{state.error ?? 'A conexão com a sala caiu.'}</span>

@@ -376,3 +376,6 @@ button.link:hover:not(:disabled) { --fg: var(--paper); }
 .tour-prompt p { margin: 0; }
 .tour-prompt .modal-actions { justify-content: center; }
 .tour-prompt-hint { font-size: 13px; color: var(--dust); }
+
+/* som bloqueado pelo autoplay: some no primeiro clique */
+.banner.sound-blocked { cursor: pointer; }

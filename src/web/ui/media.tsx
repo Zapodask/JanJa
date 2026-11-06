@@ -1,3 +1,4 @@
+import { attachStream } from '../playback'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent, type RefObject } from 'react'
 import type { InputMsg } from '../../shared/control'
 import { useControlCapture } from '../control/useCapture'
@@ -12,11 +13,24 @@ function useSink(ref: RefObject<HTMLMediaElement | null>, sinkId: string) {
 }
 
 /** Áudio invisível (microfone de um amigo). */
-export function RemoteAudio({ stream, volume, sinkId }: { stream: MediaStream; volume: number; sinkId: string }) {
+export function RemoteAudio({
+  stream,
+  volume,
+  sinkId,
+  audioOnly
+}: {
+  stream: MediaStream
+  volume: number
+  sinkId: string
+  /** só as trilhas de áudio (som da tela: a imagem vai num <video> mudo separado) */
+  audioOnly?: boolean
+}) {
   const ref = useRef<HTMLAudioElement>(null)
   useEffect(() => {
-    if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream
-  }, [stream])
+    const el = ref.current
+    if (!el) return
+    return attachStream(el, stream, audioOnly ? (s) => new MediaStream(s.getAudioTracks()) : undefined)
+  }, [stream, audioOnly])
   useEffect(() => {
     if (ref.current) ref.current.volume = volume
   }, [volume])
@@ -117,13 +131,12 @@ export function VideoTile({
   const [idle, setIdle] = useState(false)
   const timer = useRef<number | undefined>(undefined)
 
+  // imagem: sempre muda (autoplay nunca é bloqueado) e religa quando chegam trilhas novas
   useEffect(() => {
-    if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream
+    const el = ref.current
+    if (!el) return
+    return attachStream(el, stream, (s) => new MediaStream(s.getVideoTracks()))
   }, [stream])
-  useEffect(() => {
-    if (ref.current) ref.current.volume = volume
-  }, [volume])
-  useSink(ref, sinkId)
 
   const controlState = control?.state ?? 'idle'
   const controlling = controlState === 'active'
@@ -173,7 +186,9 @@ export function VideoTile({
         onMouseMove={full ? wake : undefined}
         aria-label={`Tela de ${name}`}
       >
-        <video ref={ref} autoPlay playsInline muted={local} />
+        <video ref={ref} autoPlay playsInline muted />
+        {/* som da tela num elemento próprio: se o navegador bloquear o som, a imagem continua */}
+        {!local && <RemoteAudio stream={stream} volume={volume} sinkId={sinkId} audioOnly />}
         <span className="tile-name">{local ? `${name} (você)` : name}</span>
 
         {control && controlState !== 'idle' && (
