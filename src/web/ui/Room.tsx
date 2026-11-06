@@ -7,6 +7,7 @@ import { getPrefs, rememberRoom, setPrefs, volumeKey } from '../storage'
 import { canShareScreen, useRoom } from '../useRoom'
 import { Avatar } from './Avatar'
 import { Brand, TvOff } from './Brand'
+import { Jan } from './Pixel'
 import { Dropdown, type DropdownOption } from './Dropdown'
 import { Icon, type IconName } from './icons'
 import { RemoteAudio, toggleFullscreen, VideoTile, VolumeSlider } from './media'
@@ -254,7 +255,10 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
     return (
       <main className="center">
         <div className="wait">
-          <TvOff noise={state.status !== 'erro'} />
+          <div className="scene" aria-hidden="true">
+            <Jan pose={state.status === 'erro' ? 'idle' : 'walk'} size={120} />
+            <TvOff noise={state.status !== 'erro'} />
+          </div>
           <h1>
             {state.status === 'conectando' && 'Entrando na sala…'}
             {state.status === 'aguardando-aprovacao' && 'Esperando quem criou a sala deixar você entrar'}
@@ -361,7 +365,10 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
 
         {shown.length === 0 ? (
           <div className="empty">
-            <TvOff />
+            <div className="scene" aria-hidden="true">
+              <Jan pose="wait" size={144} />
+              <TvOff />
+            </div>
             <h2>Ninguém está compartilhando.</h2>
             {canShare ? (
               <button className="primary big" onClick={() => void share()}>

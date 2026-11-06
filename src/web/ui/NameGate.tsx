@@ -3,6 +3,7 @@ import { MAX_NAME_LENGTH } from '../../shared/protocol'
 import { cleanName, saveName } from '../storage'
 import { Avatar } from './Avatar'
 import { Brand } from './Brand'
+import { Jan } from './Pixel'
 
 /** Quem abre o link da sala pela primeira vez escolhe o apelido antes de entrar. */
 export function NameGate({
@@ -27,6 +28,9 @@ export function NameGate({
   return (
     <main className="center">
       <form className="panel narrow" onSubmit={submit}>
+        <div className="gate-jan" aria-hidden="true">
+          <Jan pose="wave" size={120} />
+        </div>
         <Brand />
         <h1>Você foi convidado para uma sala</h1>
         <p className="room-code">

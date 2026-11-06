@@ -148,6 +148,15 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border: 0; bo
 .tvoff-leg { position: absolute; bottom: 0; width: 14px; height: 14px; background: var(--rug); }
 .tvoff-leg.l { left: 36px; transform: skewX(-20deg); }
 .tvoff-leg.r { right: 36px; transform: skewX(20deg); }
+.pixel { display: block; image-rendering: pixelated; }
+.jan, .pixel-tv { flex: none; }
+.ground { margin-top: -2px; }
+.scene { display: flex; align-items: flex-end; justify-content: center; gap: 16px; }
+.gate-jan { align-self: center; margin: -8px 0 -8px; }
+.hero-pixels { display: flex; align-items: flex-end; gap: 0; }
+.lobby { position: relative; }
+@media (min-width: 1180px) { .hero-pixels { position: absolute; top: clamp(32px, 9vh, 96px); left: calc(100% + 24px); } }
+@media (max-width: 1179px) { .hero-pixels { margin: -8px 0; } }
 .wait { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; max-width: 460px; }
 .wait h1 { font-size: 24px; }
 

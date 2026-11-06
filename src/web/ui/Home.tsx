@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { CreateRoomResponseSchema, MAX_NAME_LENGTH, parseRoomInput } from '../../shared/protocol'
 import {
   cleanName,
@@ -14,6 +14,7 @@ import { canShareScreen } from '../useRoom'
 import { Avatar } from './Avatar'
 import { Brand } from './Brand'
 import { Icon } from './icons'
+import { Jan, PixelTv } from './Pixel'
 
 interface Props {
   name: string
@@ -47,6 +48,17 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(invalidPath ? 'Esse link de sala não é válido.' : '')
   const [recents, setRecents] = useState<RecentRoom[]>(recentRooms)
+  // momento único ao carregar: Jan aponta o controle e a TV liga; depois ele volta a respirar
+  const [pose, setPose] = useState<'remote' | 'idle'>('remote')
+  const [tvOn, setTvOn] = useState(false)
+  useEffect(() => {
+    const a = setTimeout(() => setTvOn(true), 700)
+    const b = setTimeout(() => setPose('idle'), 2800)
+    return () => {
+      clearTimeout(a)
+      clearTimeout(b)
+    }
+  }, [])
 
   const commitName = (): string | null => {
     const n = cleanName(draft)
@@ -103,6 +115,11 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
           Veja a tela dos seus amigos pelo navegador. <span>Sem instalar nada.</span>
         </h1>
       </header>
+
+      <div className="hero-pixels" aria-hidden="true">
+        <Jan pose={pose} size={192} />
+        <PixelTv on={tvOn} size={192} />
+      </div>
 
       {!canShareScreen() && (
         <p className="notice">
