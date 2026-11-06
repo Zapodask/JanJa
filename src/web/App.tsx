@@ -4,6 +4,7 @@ import { hostKeyFor, savedName } from './storage'
 import { Home } from './ui/Home'
 import { NameGate } from './ui/NameGate'
 import { Room } from './ui/Room'
+import { ToastProvider } from './ui/Toasts'
 
 /** Rotas: "/" = início, "/r/<id>" = sala. Sem biblioteca de rotas. */
 function roomFromPath(path: string): string | null {
@@ -28,7 +29,19 @@ export function App() {
 
   const roomId = roomFromPath(path)
 
-  if (!roomId) return <Home name={name} onName={setName} onGo={go} invalidPath={path !== '/'} />
-  if (!name) return <NameGate onName={setName} onCancel={() => go('/')} />
-  return <Room key={roomId} roomId={roomId} name={name} hostKey={hostKeyFor(roomId)} onLeave={() => go('/')} />
+  let screen
+  if (!roomId) screen = <Home key="home" name={name} onName={setName} onGo={go} invalidPath={path !== '/'} />
+  else if (!name) screen = <NameGate key="gate" roomId={roomId} onName={setName} onCancel={() => go('/')} />
+  else screen = <Room key={roomId} roomId={roomId} name={name} hostKey={hostKeyFor(roomId)} onLeave={() => go('/')} />
+
+  return (
+    <ToastProvider>
+      <div className="bg" aria-hidden="true">
+        <i className="blob b1" />
+        <i className="blob b2" />
+        <i className="blob b3" />
+      </div>
+      {screen}
+    </ToastProvider>
+  )
 }

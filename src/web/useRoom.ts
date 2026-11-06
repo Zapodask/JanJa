@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { INITIAL_STATE, type PeerState } from '../shared/protocol'
 import { PeerManager, type PeerView } from './rtc/PeerManager'
-import { DEFAULT_PRESET, type QualityPreset } from './rtc/quality'
+import { presetById, type QualityPreset } from './rtc/quality'
 import { SignalingClient } from './signaling'
+import { getPrefs, setPrefs } from './storage'
 
 export type RoomStatus = 'conectando' | 'aguardando-aprovacao' | 'na-sala' | 'caiu' | 'erro'
 
@@ -20,6 +21,11 @@ export interface RoomState {
   me: PeerState
   screen?: MediaStream
   preset: QualityPreset
+  /** o próprio mic (para indicador de fala local) */
+  micStream?: MediaStream
+  /** mensagem amigável se o mic foi negado / não existe */
+  micError?: string
+  /** navegador tem getUserMedia e a permissão não foi negada nesta sessão */
   micAvailable: boolean
   requests: JoinRequest[]
 }
@@ -28,6 +34,17 @@ const MIC_CONSTRAINTS: MediaTrackConstraints = {
   echoCancellation: true,
   noiseSuppression: true,
   autoGainControl: true
+}
+
+const hasGetUserMedia = (): boolean => typeof navigator.mediaDevices?.getUserMedia === 'function'
+
+/** Traduz o erro do getUserMedia numa mensagem para a pessoa. */
+function micErrorMessage(err: unknown): string {
+  const name = err instanceof DOMException ? err.name : ''
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'Nenhum microfone encontrado neste dispositivo.'
+  if (name === 'NotAllowedError' || name === 'SecurityError')
+    return 'O navegador bloqueou o microfone. Libere no cadeado da barra de endereço.'
+  return 'Não foi possível acessar o microfone.'
 }
 
 /** O navegador consegue compartilhar tela aqui? (celular e páginas sem HTTPS não conseguem) */
@@ -66,15 +83,18 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
     status: 'conectando',
     isHost: false,
     peers: [],
-    me: { ...INITIAL_STATE },
-    preset: DEFAULT_PRESET,
-    micAvailable: false,
+    // mic começa mudo, salvo se a pessoa já escolheu ligar da última vez
+    me: { ...INITIAL_STATE, micMuted: getPrefs().micMuted },
+    preset: presetById(getPrefs().presetId),
+    micAvailable: hasGetUserMedia(),
     requests: []
   })
   const signalingRef = useRef<SignalingClient>(undefined)
   const managerRef = useRef<PeerManager>(undefined)
   const micRef = useRef<MediaStream>(undefined)
-  const meRef = useRef<PeerState>({ ...INITIAL_STATE })
+  const meRef = useRef<PeerState>({ ...INITIAL_STATE, micMuted: getPrefs().micMuted })
+  const micPendingRef = useRef<Promise<MediaStream | undefined>>(undefined)
+  const mountedRef = useRef(false)
   const [attempt, setAttempt] = useState(0)
 
   const patch = useCallback((p: Partial<RoomState>) => setState((s) => ({ ...s, ...p })), [])
@@ -88,6 +108,43 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
     [patch]
   )
 
+  /** Pede o mic (ou reaproveita o que está vivo). Em caso de falha preenche micError e devolve undefined. */
+  const acquireMic = useCallback((): Promise<MediaStream | undefined> => {
+    const current = micRef.current
+    if (current?.getAudioTracks().some((t) => t.readyState === 'live')) return Promise.resolve(current)
+    if (micPendingRef.current) return micPendingRef.current
+    const pending = (async () => {
+      try {
+        if (!hasGetUserMedia()) throw new DOMException('sem getUserMedia', 'NotFoundError')
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: MIC_CONSTRAINTS, video: false })
+        if (!mountedRef.current) {
+          stream.getTracks().forEach((t) => t.stop())
+          return undefined
+        }
+        micRef.current = stream
+        patch({ micStream: stream, micError: undefined, micAvailable: true })
+        return stream
+      } catch (err) {
+        if (mountedRef.current) patch({ micStream: undefined, micError: micErrorMessage(err), micAvailable: false })
+        return undefined
+      } finally {
+        micPendingRef.current = undefined
+      }
+    })()
+    micPendingRef.current = pending
+    return pending
+  }, [patch])
+
+  // ao desmontar de vez, solta o device do mic (reconectar reaproveita)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      micRef.current?.getTracks().forEach((t) => t.stop())
+      micRef.current = undefined
+    }
+  }, [])
+
   useEffect(() => {
     let disposed = false
     const signaling = new SignalingClient({ roomId, name, hostKey })
@@ -95,19 +152,17 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
     patch({ status: 'conectando', error: undefined, peers: [], requests: [] })
 
     void (async () => {
-      // microfone é opcional: sem permissão, a pessoa só assiste e ouve
-      let mic: MediaStream | undefined
-      try {
-        mic = await navigator.mediaDevices.getUserMedia({ audio: MIC_CONSTRAINTS, video: false })
-        for (const t of mic.getAudioTracks()) t.enabled = !meRef.current.micMuted
-      } catch {
-        mic = undefined
+      // microfone preguiçoso: se a última escolha foi mudo, nem pede permissão agora
+      if (!meRef.current.micMuted) {
+        const mic = await acquireMic()
+        if (mic) {
+          for (const t of mic.getAudioTracks()) t.enabled = true
+        } else {
+          // falhou: entra mudo, mas não sobrescreve a preferência salva
+          meRef.current = { ...meRef.current, micMuted: true }
+        }
       }
-      if (disposed) {
-        mic?.getTracks().forEach((t) => t.stop())
-        return
-      }
-      micRef.current = mic
+      if (disposed) return
 
       try {
         const welcome = await signaling.connect(() => !disposed && patch({ status: 'aguardando-aprovacao' }))
@@ -115,7 +170,7 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
         const manager = new PeerManager(signaling, welcome.peerId, welcome.iceServers)
         managerRef.current = manager
         manager.onChange(() => !disposed && patch({ peers: manager.views() }))
-        manager.setMic(mic)
+        manager.setMic(micRef.current)
 
         // quem entra inicia a conexão com todos que já estão na sala
         // (antes de assinar as mensagens, para os sinais guardados acharem o peer)
@@ -153,7 +208,8 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
           status: 'na-sala',
           selfId: welcome.peerId,
           isHost: welcome.isHost,
-          micAvailable: !!mic,
+          me: meRef.current,
+          micStream: micRef.current,
           peers: manager.views()
         })
       } catch (err) {
@@ -166,18 +222,28 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
       managerRef.current?.dispose()
       managerRef.current = undefined
       signaling.close()
-      micRef.current?.getTracks().forEach((t) => t.stop())
-      micRef.current = undefined
       meRef.current = { ...meRef.current, sharing: false, screenStreamId: undefined }
       setState((s) => ({ ...s, screen: undefined, me: meRef.current }))
     }
-  }, [roomId, name, hostKey, attempt, patch])
+  }, [roomId, name, hostKey, attempt, patch, acquireMic])
 
-  const toggleMic = useCallback(() => {
-    const muted = !meRef.current.micMuted
-    for (const t of micRef.current?.getAudioTracks() ?? []) t.enabled = !muted
-    publishState({ micMuted: muted })
-  }, [publishState])
+  const toggleMic = useCallback(async () => {
+    if (!meRef.current.micMuted) {
+      // mutar: só desliga a trilha, o device continua aberto para religar rápido
+      for (const t of micRef.current?.getAudioTracks() ?? []) t.enabled = false
+      publishState({ micMuted: true })
+      setPrefs({ micMuted: true })
+      return
+    }
+    // ligar: pede o mic na primeira vez (ou se o device morreu)
+    const hadMic = micRef.current
+    const mic = await acquireMic()
+    if (!mic) return // permissão negada: segue mudo, micError já está no estado
+    if (mic !== hadMic) managerRef.current?.setMic(mic)
+    for (const t of mic.getAudioTracks()) t.enabled = true
+    publishState({ micMuted: false })
+    setPrefs({ micMuted: false })
+  }, [acquireMic, publishState])
 
   const stopShare = useCallback(() => {
     managerRef.current?.stopScreen()
@@ -196,6 +262,7 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
       // anuncia antes das tracks chegarem, para o receptor classificar o áudio da tela
       publishState({ sharing: true, screenStreamId: stream.id })
       managerRef.current?.startScreen(stream, preset)
+      setPrefs({ presetId: preset.id })
       patch({ screen: stream, preset })
       return { hasAudio: stream.getAudioTracks().length > 0 }
     },
@@ -205,6 +272,7 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
   const setPreset = useCallback(
     (preset: QualityPreset) => {
       managerRef.current?.setPreset(preset)
+      setPrefs({ presetId: preset.id })
       patch({ preset })
     },
     [patch]

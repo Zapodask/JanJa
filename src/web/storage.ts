@@ -1,8 +1,15 @@
 import { MAX_NAME_LENGTH } from '../shared/protocol'
 
+/**
+ * Tudo que o JanJa lembra fica no localStorage deste navegador, com prefixo "janja.".
+ * Leitura e escrita nunca quebram a página: modo anônimo ou storage cheio só fazem
+ * o app esquecer.
+ */
+const PREFIX = 'janja.'
+
 function load(key: string): string {
   try {
-    return localStorage.getItem(key) ?? ''
+    return localStorage.getItem(PREFIX + key) ?? ''
   } catch {
     return ''
   }
@@ -10,20 +17,104 @@ function load(key: string): string {
 
 function save(key: string, value: string): void {
   try {
-    localStorage.setItem(key, value)
+    localStorage.setItem(PREFIX + key, value)
   } catch {
     /* armazenamento indisponível: segue sem lembrar */
   }
 }
 
-export const cleanName = (name: string): string => name.trim().slice(0, MAX_NAME_LENGTH)
+function loadJson<T>(key: string, fallback: T): T {
+  const raw = load(key)
+  if (!raw) return fallback
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
+}
 
-export const savedName = (): string => cleanName(load('janja.name'))
-export const saveName = (name: string): void => save('janja.name', cleanName(name))
+const saveJson = (key: string, value: unknown): void => save(key, JSON.stringify(value))
+
+// ---------- identidade ----------
+
+export const cleanName = (name: string): string => name.trim().slice(0, MAX_NAME_LENGTH)
+export const savedName = (): string => cleanName(load('name'))
+export const saveName = (name: string): void => save('name', cleanName(name))
 
 /** A chave de host fica no navegador de quem criou a sala: recarregar a página mantém o papel. */
-export const hostKeyFor = (roomId: string): string | undefined => load(`janja.host.${roomId}`) || undefined
-export const saveHostKey = (roomId: string, key: string): void => save(`janja.host.${roomId}`, key)
+export const hostKeyFor = (roomId: string): string | undefined => load(`host.${roomId}`) || undefined
+export const saveHostKey = (roomId: string, key: string): void => save(`host.${roomId}`, key)
 
-export const savedApproval = (): boolean => load('janja.approval') !== 'false'
-export const saveApproval = (on: boolean): void => save('janja.approval', String(on))
+// ---------- preferências ----------
+
+export interface Prefs {
+  /** mic começa desligado até a pessoa ligar uma vez; depois vale a última escolha */
+  micMuted: boolean
+  presetId: string
+  approval: boolean
+  sinkId: string
+  /** volume por pessoa, guardado pelo apelido (o id muda a cada entrada) */
+  volumes: Record<string, number>
+  sidebarOpen: boolean
+  showStats: boolean
+}
+
+const DEFAULT_PREFS: Prefs = {
+  micMuted: true,
+  presetId: 'jogo',
+  approval: true,
+  sinkId: 'default',
+  volumes: {},
+  sidebarOpen: true,
+  showStats: true
+}
+
+// compatibilidade com a chave antiga de aprovação
+function legacy(): Partial<Prefs> {
+  const approval = load('approval')
+  return approval ? { approval: approval !== 'false' } : {}
+}
+
+let cache: Prefs | undefined
+
+export function getPrefs(): Prefs {
+  cache ??= { ...DEFAULT_PREFS, ...legacy(), ...loadJson<Partial<Prefs>>('prefs', {}) }
+  return cache
+}
+
+export function setPrefs(patch: Partial<Prefs>): Prefs {
+  cache = { ...getPrefs(), ...patch }
+  saveJson('prefs', cache)
+  return cache
+}
+
+export const savedApproval = (): boolean => getPrefs().approval
+export const saveApproval = (on: boolean): void => void setPrefs({ approval: on })
+
+export const volumeKey = (kind: 'mic' | 'screen', name: string): string => `${kind}:${name}`
+
+// ---------- salas recentes ----------
+
+export interface RecentRoom {
+  roomId: string
+  /** quem estava na sala da última vez (para reconhecer) */
+  people: string[]
+  host: boolean
+  at: number
+}
+
+const MAX_RECENT = 6
+
+export const recentRooms = (): RecentRoom[] => loadJson<RecentRoom[]>('recent', []).filter((r) => r && r.roomId)
+
+export function rememberRoom(room: Omit<RecentRoom, 'at'>): void {
+  const list = recentRooms().filter((r) => r.roomId !== room.roomId)
+  list.unshift({ ...room, at: Date.now() })
+  saveJson('recent', list.slice(0, MAX_RECENT))
+}
+
+export function forgetRoom(roomId: string): RecentRoom[] {
+  const list = recentRooms().filter((r) => r.roomId !== roomId)
+  saveJson('recent', list)
+  return list
+}
