@@ -33,3 +33,21 @@ describe('tour: filtragem dos passos', () => {
     expect(ROOM_STEPS).toHaveLength(10)
   })
 })
+
+import { shouldAskTour, shouldAutoTour } from '../src/web/ui/tourLogic'
+
+describe('tour: pergunta da primeira visita', () => {
+  it('pergunta só a quem nunca respondeu nem viu tour', () => {
+    expect(shouldAskTour('ask', 0, 0)).toBe(true)
+    expect(shouldAskTour(undefined, undefined, undefined)).toBe(true)
+    expect(shouldAskTour('yes', 0, 0)).toBe(false)
+    expect(shouldAskTour('no', 0, 0)).toBe(false)
+    expect(shouldAskTour('ask', 1, 0)).toBe(false) // já viu o tour antes desta mudança
+  })
+  it('tour automático só para quem disse sim', () => {
+    expect(shouldAutoTour('yes', 0)).toBe(true)
+    expect(shouldAutoTour('yes', TOUR_VERSION)).toBe(false)
+    expect(shouldAutoTour('no', 0)).toBe(false)
+    expect(shouldAutoTour('ask', 0)).toBe(false)
+  })
+})

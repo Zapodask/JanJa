@@ -74,6 +74,8 @@ export interface Prefs {
   sounds: boolean
   /** versão do tour da sala já vista (0 = nunca) */
   tourDone: number
+  /** resposta à pergunta da primeira visita: 'ask' = ainda não perguntou */
+  tourAnswer: 'ask' | 'yes' | 'no'
   /** versão do tour da Home já vista */
   homeTourDone: number
 }
@@ -88,6 +90,7 @@ const DEFAULT_PREFS: Prefs = {
   showStats: true,
   sounds: true,
   tourDone: 0,
+  tourAnswer: 'ask',
   homeTourDone: 0
 }
 

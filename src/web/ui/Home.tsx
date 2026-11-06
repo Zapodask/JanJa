@@ -17,7 +17,8 @@ import { Brand } from './Brand'
 import { Icon } from './icons'
 import { Jan, PixelTv } from './Pixel'
 import { startTour, stopTour } from './tour'
-import { HOME_STEPS, shouldShowTour } from './tourLogic'
+import { HOME_STEPS, shouldAskTour, shouldAutoTour } from './tourLogic'
+import { TourPrompt } from './TourPrompt'
 
 interface Props {
   name: string
@@ -55,8 +56,15 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
   const [pose, setPose] = useState<'remote' | 'idle'>('remote')
   const [tvOn, setTvOn] = useState(false)
   // tour curto na primeira visita, depois que o Jan terminou o número do controle remoto
+  // primeira visita: pergunta se quer o tour; quem já disse sim vê o tour da Home uma vez
+  const [askTour, setAskTour] = useState(false)
   useEffect(() => {
-    if (!shouldShowTour(getPrefs().homeTourDone)) return
+    const p = getPrefs()
+    if (shouldAskTour(p.tourAnswer, p.tourDone, p.homeTourDone)) {
+      const t = setTimeout(() => setAskTour(true), 1200)
+      return () => clearTimeout(t)
+    }
+    if (!shouldAutoTour(p.tourAnswer, p.homeTourDone)) return
     const t = setTimeout(() => startTour('home', HOME_STEPS), 2500)
     return () => clearTimeout(t)
   }, [])
@@ -216,6 +224,9 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
           Ver o tour
         </button>
       </footer>
+      {askTour && (
+        <TourPrompt onYes={() => window.setTimeout(() => startTour('home', HOME_STEPS), 150)} onClose={() => setAskTour(false)} />
+      )}
     </main>
   )
 }

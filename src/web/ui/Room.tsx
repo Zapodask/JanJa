@@ -16,7 +16,8 @@ import { Icon, type IconName } from './icons'
 import { RemoteAudio, toggleFullscreen, VideoTile, VolumeSlider } from './media'
 import { useToast } from './Toasts'
 import { startTour, stopTour, tourActive } from './tour'
-import { ROOM_STEPS, shouldShowTour } from './tourLogic'
+import { ROOM_STEPS, shouldAskTour, shouldAutoTour } from './tourLogic'
+import { TourPrompt } from './TourPrompt'
 
 const ROUTE_LABEL: Record<Route, string> = {
   conectando: 'conectando',
@@ -103,7 +104,6 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   const controlling = control.controller.phase === 'active'
   const controlledPeer = control.controlled.phase === 'idle' ? undefined : control.controlled.peer
   const controlledBy = controlledPeer ? (state.peers.find((p) => p.id === controlledPeer)?.name ?? 'Alguém') : undefined
-  const [focus, setFocus] = useState<string | null>(null)
   const [sinkId, setSinkId] = useState(() => getPrefs().sinkId)
   const [volumes, setVolumes] = useState<Record<string, number>>(() => getPrefs().volumes)
   const [sidebarOpen, setSidebarOpen] = useState(() => getPrefs().sidebarOpen)
@@ -209,9 +209,17 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   )
   // começa sozinho na primeira vez; espera modais (pedido de entrada ou de controle) fecharem
   const tourBusy = state.requests.length > 0 || control.controlled.phase === 'asking'
+  // primeira visita direto pelo link da sala: a pergunta aparece aqui
+  const [askTour, setAskTour] = useState(false)
   useEffect(() => {
     if (tourBusy && tourActive()) stopTour(true)
-    if (state.status !== 'na-sala' || tourBusy || !shouldShowTour(getPrefs().tourDone)) return
+    if (state.status !== 'na-sala' || tourBusy) return
+    const p = getPrefs()
+    if (shouldAskTour(p.tourAnswer, p.tourDone, p.homeTourDone)) {
+      const t = window.setTimeout(() => setAskTour(true), 800)
+      return () => window.clearTimeout(t)
+    }
+    if (!shouldAutoTour(p.tourAnswer, p.tourDone)) return
     const t = window.setTimeout(runTour, 800)
     return () => window.clearTimeout(t)
   }, [state.status, tourBusy, runTour])
@@ -270,12 +278,6 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   }, [tiles])
   const shown = [...tiles, ...ghosts.filter((g) => !tiles.some((t) => t.id === g.id))]
 
-  // se a tela em foco sumiu, volta para a grade
-  const focusedTile = tiles.find((t) => t.id === focus)
-  useEffect(() => {
-    if (focus && !focusedTile) setFocus(null)
-  }, [focus, focusedTile])
-
   const peerById = (id: string) => state.peers.find((p) => p.id === id)
   const viewers = state.peers.length
 
@@ -318,19 +320,23 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
         e.preventDefault()
         void toggleMic()
       } else if (k === 'f') {
-        const id = focus ?? (tilesRef.current.length === 1 ? tilesRef.current[0].id : null)
-        const el = id ? document.querySelector<HTMLElement>(`[data-tile-id="${CSS.escape(id)}"]`) : null
+        // F age na tela selecionada (teclado), na que está sob o mouse ou na única que houver
+        const active = document.activeElement?.closest<HTMLElement>('[data-tile-id]')
+        const hovered = document.querySelector<HTMLElement>('[data-tile-id]:hover')
+        const single =
+          tilesRef.current.length === 1
+            ? document.querySelector<HTMLElement>(`[data-tile-id="${CSS.escape(tilesRef.current[0].id)}"]`)
+            : null
+        const el = active ?? hovered ?? single
         if (el) {
           e.preventDefault()
           toggleFullscreen(el)
         }
-      } else if (k === 'escape' && focus && !document.fullscreenElement) {
-        setFocus(null)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [focus, toggleMic, controlling])
+  }, [toggleMic, controlling])
 
   if (state.status === 'conectando' || state.status === 'aguardando-aprovacao' || state.status === 'erro') {
     return (
@@ -369,7 +375,6 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   }))
   const micDisabled = !state.micAvailable
   const request = state.requests[0]
-  const thumbs = focusedTile ? tiles.length - 1 : 0
 
   return (
     <div className={`room ${sidebarOpen ? '' : 'collapsed'} ${control.controlled.phase === 'active' ? 'has-banner' : ''}`}>
@@ -475,8 +480,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
         ) : (
           <div
             data-tour="stage"
-            className={`grid ${focusedTile ? 'has-focus' : `n${Math.min(shown.length, 4)}`}`}
-            style={{ '--thumbs': Math.max(thumbs, 1) } as CSSProperties}
+            className={`grid n${Math.min(shown.length, 4)}`}
           >
             {shown.map((t) => {
               const leaving = !tiles.some((x) => x.id === t.id)
@@ -493,10 +497,6 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
                   volume={t.local ? 1 : vol('screen', who)}
                   onVolume={t.local ? undefined : (v) => setVol('screen', who, v)}
                   sinkId={effectiveSink}
-                  focused={focus === t.id}
-                  thumb={!!focusedTile && focus !== t.id}
-                  onFocus={() => setFocus(t.id)}
-                  onToggleFocus={() => setFocus((f) => (f === t.id ? null : t.id))}
                   badge={showStats && peer ? routeInfo(peer) : undefined}
                   control={
                     t.local || leaving
@@ -603,6 +603,8 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
           </button>
         </footer>
       </main>
+
+      {askTour && !tourBusy && <TourPrompt onYes={runTour} onClose={() => setAskTour(false)} />}
 
       {request && (
         <div className="modal-backdrop">

@@ -89,13 +89,9 @@ interface TileProps {
   volume?: number
   onVolume?: (v: number) => void
   sinkId: string
-  focused: boolean
   /** outra tela está em foco: esta vira miniatura */
-  thumb: boolean
   /** a tela parou: roda a animação de TV desligando antes de sair */
   leaving?: boolean
-  onFocus: () => void
-  onToggleFocus: () => void
   /** texto de rota/bitrate (só com estatísticas ligadas) */
   badge?: string
   control?: TileControl
@@ -111,11 +107,7 @@ export function VideoTile({
   volume = 1,
   onVolume,
   sinkId,
-  focused,
-  thumb,
   leaving,
-  onFocus,
-  onToggleFocus,
   badge,
   control
 }: TileProps) {
@@ -169,15 +161,12 @@ export function VideoTile({
   const who = local ? 'Você está compartilhando' : `${name} está compartilhando`
 
   return (
-    <figure className={`cell ${focused ? 'focused' : ''} ${thumb ? 'thumb' : ''} ${leaving ? 'leaving' : ''}`}>
+    <figure className={`cell ${leaving ? 'leaving' : ''}`}>
       <div
         ref={boxRef}
         data-tile-id={id}
         tabIndex={leaving ? -1 : 0}
         className={`tile ${full ? 'full' : ''} ${idle ? 'idle' : ''} ${controlling ? 'controlling' : ''}`}
-        onClick={() => {
-          if (!focused && !controlling) onFocus()
-        }}
         onDoubleClick={() => {
           if (!controlling) toggleFullscreen(boxRef.current)
         }}
@@ -209,17 +198,6 @@ export function VideoTile({
             </button>
           )}
           {!local && onVolume && <VolumeSlider value={volume} onChange={onVolume} label={`Volume da tela de ${name}`} />}
-          {!thumb && (
-            <button
-              type="button"
-              className="icon-btn sm"
-              onClick={onToggleFocus}
-              data-tip={focused ? 'Voltar para a grade (Esc)' : 'Colocar em foco'}
-              aria-label={focused ? 'Voltar para a grade' : 'Colocar em foco'}
-            >
-              <Icon name={focused ? 'grid' : 'focus'} size={16} />
-            </button>
-          )}
           <button
             type="button"
             className="icon-btn sm"

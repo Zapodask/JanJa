@@ -7,6 +7,19 @@ export const TOUR_VERSION = 1
 export const shouldShowTour = (seen: number | undefined, version: number = TOUR_VERSION): boolean =>
   !(typeof seen === 'number' && seen >= version)
 
+export type TourAnswer = 'ask' | 'yes' | 'no'
+
+/**
+ * Pergunta da primeira visita: só se nunca respondeu e nenhum tour foi visto
+ * (quem já viu um tour numa versão anterior do app não é perguntado de novo).
+ */
+export const shouldAskTour = (answer: TourAnswer | undefined, roomSeen: number | undefined, homeSeen: number | undefined): boolean =>
+  (answer ?? 'ask') === 'ask' && !roomSeen && !homeSeen
+
+/** Tour automático: só para quem respondeu sim e ainda não viu esta versão. */
+export const shouldAutoTour = (answer: TourAnswer | undefined, seen: number | undefined, version: number = TOUR_VERSION): boolean =>
+  answer === 'yes' && shouldShowTour(seen, version)
+
 export interface TourStep {
   id: string
   /** seletor CSS do elemento; sem seletor = popover centralizado */
@@ -49,7 +62,7 @@ export const ROOM_STEPS: TourStep[] = [
     selector: t('stage'),
     side: 'top',
     title: 'O palco',
-    text: 'Clique numa tela para colocá-la em foco. Duplo clique ou F abre em tela cheia.'
+    text: 'Cada tela compartilhada aparece aqui. Duplo clique ou F abre em tela cheia.'
   },
   {
     id: 'control',
