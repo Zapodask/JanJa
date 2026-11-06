@@ -70,6 +70,8 @@ export interface Prefs {
   volumes: Record<string, number>
   sidebarOpen: boolean
   showStats: boolean
+  /** campainha de pedido de entrada e som de tela compartilhada */
+  sounds: boolean
 }
 
 const DEFAULT_PREFS: Prefs = {
@@ -79,7 +81,8 @@ const DEFAULT_PREFS: Prefs = {
   sinkId: 'default',
   volumes: {},
   sidebarOpen: true,
-  showStats: true
+  showStats: true,
+  sounds: true
 }
 
 // compatibilidade com a chave antiga de aprovação

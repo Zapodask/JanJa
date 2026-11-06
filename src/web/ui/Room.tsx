@@ -5,6 +5,7 @@ import type { PeerView, Route } from '../rtc/PeerManager'
 import { useControl } from '../control/useControl'
 import { PRESETS, bitrateFor, presetById } from '../rtc/quality'
 import { getPrefs, rememberRoom, setPrefs, volumeKey } from '../storage'
+import { playDoorbell, playKnock, playShareOn, setSoundSink } from '../sounds'
 import { canShareScreen, useRoom } from '../useRoom'
 import { Avatar } from './Avatar'
 import { ControlBanner, ControlRequestModal, ControlSection } from './Control'
@@ -105,6 +106,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   const [volumes, setVolumes] = useState<Record<string, number>>(() => getPrefs().volumes)
   const [sidebarOpen, setSidebarOpen] = useState(() => getPrefs().sidebarOpen)
   const [showStats, setShowStats] = useState(() => getPrefs().showStats)
+  const [soundsOn, setSoundsOn] = useState(() => getPrefs().sounds)
   const outputs = useOutputDevices()
   const link = roomUrl(location.origin, roomId)
   const canShare = canShareScreen()
@@ -150,6 +152,41 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
     for (const [id, n] of now) if (!prev.has(id)) toast(`${n} entrou`, 'ok')
     for (const [id, n] of prev) if (!now.has(id)) toast(`${n} saiu`, 'info')
   }, [state.status, state.peers, toast])
+
+  // campainha para cada pedido de entrada novo (só quem aprova recebe pedidos)
+  const rang = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    for (const r of state.requests) {
+      if (rang.current.has(r.requestId)) continue
+      rang.current.add(r.requestId)
+      if (soundsOn) playDoorbell()
+    }
+  }, [state.requests, soundsOn])
+
+  // som de TV ligando quando alguém da sala começa a compartilhar (quem já compartilhava ao entrar não toca)
+  const sharing = useRef<Set<string> | null>(null)
+  useEffect(() => {
+    if (state.status !== 'na-sala') {
+      sharing.current = null
+      return
+    }
+    const now = new Set(state.peers.filter((p) => p.screen).map((p) => p.id))
+    const prev = sharing.current
+    sharing.current = now
+    if (!prev || !soundsOn) return
+    for (const id of now) {
+      if (!prev.has(id)) {
+        playShareOn()
+        break
+      }
+    }
+  }, [state.status, state.peers, soundsOn])
+
+  // "toc-toc" para quem compartilha quando alguém pede o controle do PC
+  const askingPeer = control.controlled.phase === 'asking' ? control.controlled.peer : undefined
+  useEffect(() => {
+    if (askingPeer && soundsOn) playKnock()
+  }, [askingPeer, soundsOn])
 
   // erro do microfone vira aviso
   useEffect(() => {
@@ -219,6 +256,13 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
     setSidebarOpen(next)
     setPrefs({ sidebarOpen: next })
   }
+  const toggleSounds = () => {
+    const next = !soundsOn
+    setSoundsOn(next)
+    setPrefs({ sounds: next })
+    if (next) playShareOn() // amostra: confirma que o som está ligado
+  }
+
   const toggleStats = () => {
     const next = !showStats
     setShowStats(next)
@@ -229,6 +273,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
     setPrefs({ sinkId: id })
   }
   const effectiveSink = outputs.some((d) => d.deviceId === sinkId) ? sinkId : 'default'
+  useEffect(() => setSoundSink(effectiveSink), [effectiveSink])
 
   // atalhos: M = mic, F = tela cheia, Esc = sair do foco
   const tilesRef = useRef(tiles)
@@ -490,6 +535,15 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
             />
           )}
 
+          <button
+            className={`icon-btn ${soundsOn ? 'on' : ''}`}
+            onClick={toggleSounds}
+            data-tip={soundsOn ? 'Desligar sons de aviso' : 'Ligar sons de aviso'}
+            aria-label="Sons de aviso"
+            aria-pressed={soundsOn}
+          >
+            <Icon name={soundsOn ? 'bell' : 'bellOff'} size={20} />
+          </button>
           <button
             className={`icon-btn stats-toggle ${showStats ? 'on' : ''}`}
             onClick={toggleStats}

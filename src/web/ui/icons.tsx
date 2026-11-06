@@ -2,6 +2,19 @@ import type { ReactNode } from 'react'
 
 /** Ícones simples feitos à mão (viewBox 24, traço arredondado). */
 const PATHS = {
+  bell: (
+    <>
+      <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" />
+      <path d="M10 20.5a2.2 2.2 0 0 0 4 0" />
+    </>
+  ),
+  bellOff: (
+    <>
+      <path d="M6 16V11a6 6 0 0 1 9.5-4.9M18 11v5l1.5 2H8" />
+      <path d="M10 20.5a2.2 2.2 0 0 0 4 0" />
+      <path d="M3 3l18 18" />
+    </>
+  ),
   download: (
     <>
       <path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5" />

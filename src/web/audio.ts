@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 let ctx: AudioContext | undefined
 let unlockBound = false
 
-function getContext(): AudioContext | undefined {
+export function getContext(): AudioContext | undefined {
   if (typeof AudioContext === 'undefined') return undefined
   ctx ??= new AudioContext()
   if (!unlockBound) {
