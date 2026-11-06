@@ -1,13 +1,13 @@
 // Página de teste: usa o SignalingClient e o PeerManager reais do renderer,
 // com câmera falsa do Chrome no lugar da captura de tela (getDisplayMedia não é automatizável).
-import { PeerManager } from '../../src/renderer/src/rtc/PeerManager'
-import { DEFAULT_PRESET } from '../../src/renderer/src/rtc/quality'
-import { SignalingClient } from '../../src/renderer/src/signaling'
+import { PeerManager } from '../../src/web/rtc/PeerManager'
+import { DEFAULT_PRESET } from '../../src/web/rtc/quality'
+import { SignalingClient } from '../../src/web/signaling'
 
 declare global {
   interface Window {
     harness: {
-      join: (code: string, name: string) => Promise<string>
+      join: (origin: string, roomId: string, name: string, hostKey?: string) => Promise<string>
       share: () => Promise<void>
       stop: () => void
       views: () => unknown[]
@@ -21,8 +21,8 @@ let signaling: SignalingClient
 let state = { sharing: false, micMuted: false } as { sharing: boolean; micMuted: boolean; screenStreamId?: string }
 
 window.harness = {
-  async join(code, name) {
-    signaling = new SignalingClient(code, name)
+  async join(origin, roomId, name, hostKey) {
+    signaling = new SignalingClient({ origin, roomId, name, hostKey })
     const welcome = await signaling.connect()
     manager = new PeerManager(signaling, welcome.peerId, welcome.iceServers)
     const mic = await navigator.mediaDevices.getUserMedia({ audio: true })

@@ -1,18 +1,5 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "jsx": "react-jsx",
-    "types": [],
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "skipLibCheck": true,
-    "isolatedModules": true,
-    "composite": true,
-    "paths": { "@shared/*": ["./src/shared/*"] }
-  },
-  "include": ["src/renderer/src/**/*", "src/shared/**/*", "src/preload/api.ts"]
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "lib": ["ES2023", "DOM", "DOM.Iterable"], "jsx": "react-jsx", "types": [] },
+  "include": ["src/web/**/*", "src/shared/**/*"]
 }

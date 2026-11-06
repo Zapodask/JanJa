@@ -1,6 +1,8 @@
 node_modules/
-out/
 dist/
+.wrangler/
+.dev.vars
 *.log
-.DS_Store
 *.tsbuildinfo
+.DS_Store
+.smoke/
