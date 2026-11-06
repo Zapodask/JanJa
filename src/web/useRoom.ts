@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { INITIAL_STATE, type PeerState } from '../shared/protocol'
 import { PeerManager, type PeerView } from './rtc/PeerManager'
-import { presetById, type QualityPreset } from './rtc/quality'
+import { applyQuality, captureConstraints, presetById, type QualityPreset } from './rtc/quality'
 import { SignalingClient } from './signaling'
 import { getPrefs, setPrefs } from './storage'
 
@@ -66,11 +66,7 @@ async function captureScreen(preset: QualityPreset): Promise<MediaStream> {
     restrictOwnAudio: true
   } as MediaTrackConstraints
   const options = {
-    video: {
-      width: { ideal: preset.width },
-      height: { ideal: preset.height },
-      frameRate: { ideal: preset.fps }
-    },
+    video: captureConstraints(preset),
     audio,
     systemAudio: 'include',
     windowAudio: 'system',
@@ -259,7 +255,8 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
       const stream = await captureScreen(preset)
       const video = stream.getVideoTracks()[0]
       if (video) {
-        video.contentHint = preset.hint
+        // veio no tamanho nativo: reduz para o preset mantendo a proporção (ultrawide continua 21:9)
+        await applyQuality(video, preset)
         video.addEventListener('ended', () => stopShare(), { once: true })
       }
       // anuncia antes das tracks chegarem, para o receptor classificar o áudio da tela

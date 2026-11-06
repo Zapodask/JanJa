@@ -7,7 +7,7 @@ import {
 } from '../../shared/control'
 import type { IceServer, PeerInfo, PeerState, SignalPayload } from '../../shared/protocol'
 import type { SignalingClient } from '../signaling'
-import { bitrateFor, type QualityPreset } from './quality'
+import { applyQuality, bitrateFor, pixelScale, type QualityPreset } from './quality'
 
 export type Route = 'conectando' | 'direto' | 'relay' | 'falhou'
 
@@ -315,10 +315,9 @@ export class PeerManager {
     this.preset = preset
     const video = this.screenStream?.getVideoTracks()[0]
     if (video) {
-      video.contentHint = preset.hint
-      void video
-        .applyConstraints({ width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: preset.fps } })
-        .catch(() => undefined)
+      // o bitrate depende do tamanho final: aplica depois que a trilha mudou
+      void applyQuality(video, preset).then(() => this.reapplyAllBitrates())
+      return
     }
     this.reapplyAllBitrates()
   }
@@ -350,7 +349,7 @@ export class PeerManager {
       if (peer.senders.has(track.id)) continue
       const sender = peer.pc.addTrack(track, stream)
       peer.senders.set(track.id, sender)
-      if (track.kind === 'video') preferVideoCodecs(peer.pc, sender)
+      if (track.kind === 'video') preferVideoCodecs(peer.pc, sender, this.preset?.hint ?? 'motion')
     }
   }
 
@@ -375,7 +374,9 @@ export class PeerManager {
     if (!sender) return
     const params = sender.getParameters()
     if (!params.encodings || params.encodings.length === 0) return // ainda negociando
-    params.encodings[0].maxBitrate = bitrateFor(preset, this.peers.size)
+    // bitrate proporcional aos pixels reais (ultrawide 2580×1080 precisa de mais que 1920×1080)
+    const { width, height } = video.getSettings()
+    params.encodings[0].maxBitrate = bitrateFor(preset, this.peers.size, pixelScale(preset, width, height))
     params.encodings[0].maxFramerate = preset.fps
     // 'balanced' em vez de 'maintain-framerate': quando a banda aperta, não derruba só a resolução (o que deixa tudo borrado)
     params.degradationPreference = preset.hint === 'detail' ? 'maintain-resolution' : 'balanced'
@@ -453,15 +454,24 @@ export class PeerManager {
  * bem mais nitidez no mesmo bitrate. Chamado logo depois do addTrack, antes da
  * negociação (que roda no próximo tick via negotiationneeded).
  */
-const CODEC_ORDER = ['video/VP9', 'video/AV1', 'video/H264', 'video/VP8']
+/**
+ * Movimento (jogo, vídeo): H.264 primeiro, que usa o encoder da placa de vídeo na maioria dos PCs.
+ * VP9 por software trava em resolução alta com 60 fps.
+ * Texto/nitidez: VP9 primeiro, mais nítido em texto e com fps baixo a CPU dá conta.
+ */
+const CODEC_ORDER: Record<QualityPreset['hint'], string[]> = {
+  motion: ['video/H264', 'video/VP9', 'video/AV1', 'video/VP8'],
+  detail: ['video/VP9', 'video/AV1', 'video/H264', 'video/VP8']
+}
 
-function preferVideoCodecs(pc: RTCPeerConnection, sender: RTCRtpSender): void {
+function preferVideoCodecs(pc: RTCPeerConnection, sender: RTCRtpSender, hint: QualityPreset['hint']): void {
+  const order = CODEC_ORDER[hint]
   const transceiver = pc.getTransceivers().find((t) => t.sender === sender)
   const caps = RTCRtpReceiver.getCapabilities?.('video')
   if (!transceiver || !caps || typeof transceiver.setCodecPreferences !== 'function') return
   const rank = (mime: string) => {
-    const i = CODEC_ORDER.indexOf(mime)
-    return i === -1 ? CODEC_ORDER.length : i
+    const i = order.indexOf(mime)
+    return i === -1 ? order.length : i
   }
   // mantém RTX/RED/FEC (rank alto) no fim, que o navegador precisa para retransmissão
   const codecs = [...caps.codecs].sort((a, b) => rank(a.mimeType) - rank(b.mimeType))

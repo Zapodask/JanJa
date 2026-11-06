@@ -26,7 +26,7 @@ const ROUTE_LABEL: Record<Route, string> = {
   falhou: 'falhou'
 }
 
-const QUALITY_ICON: Record<string, IconName> = { texto: 'panel', equilibrado: 'grid', jogo: 'screen', jogo60: 'focus' }
+const QUALITY_ICON: Record<string, IconName> = { texto: 'panel', equilibrado: 'grid', jogo: 'screen', jogo60: 'focus', nitido: 'expand' }
 
 function routeInfo(p: PeerView): string {
   const parts = [ROUTE_LABEL[p.route]]
@@ -364,7 +364,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   const qualityOptions: DropdownOption[] = PRESETS.map((p) => ({
     value: p.id,
     label: p.label.replace(/\s*\(.*\)\s*$/, ''),
-    sub: `${p.height}p, ${p.fps} fps, ~${Math.round(bitrateFor(p, Math.max(viewers, 1)) / 1_000_000)} Mbps por pessoa`,
+    sub: `até ${p.height}p, ${p.fps} fps, ~${Math.round(bitrateFor(p, Math.max(viewers, 1)) / 1_000_000)} Mbps por pessoa`,
     icon: QUALITY_ICON[p.id]
   }))
   const outputOptions: DropdownOption[] = outputs.map((d) => ({
