@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 /// O site publicado já vem liberado, para ninguém precisar rodar --allow.
 pub const DEFAULT_ORIGINS: [&str; 3] = [
-    "https://janja.pvpswapedro123.workers.dev",
+    "https://janja.spotlightre.workers.dev",
     "http://localhost:8787",
     "http://127.0.0.1:8787",
 ];
@@ -19,6 +19,9 @@ pub struct Config {
     #[serde(default)]
     pub tokens: Vec<String>,
 }
+
+/// Endereços antigos do site: saem da config salva ao carregar.
+pub const RETIRED_ORIGINS: [&str; 1] = ["https://janja.pvpswapedro123.workers.dev"];
 
 fn default_origins() -> Vec<String> {
     DEFAULT_ORIGINS.iter().map(|s| s.to_string()).collect()
@@ -45,6 +48,15 @@ impl Config {
     pub fn origin_allowed(&self, origin: Option<&str>) -> bool {
         let Some(o) = origin.and_then(normalize_origin) else { return false };
         self.origins.iter().any(|a| normalize_origin(a).as_deref() == Some(o.as_str()))
+    }
+
+    /// Config salva por versões antigas: tira endereços aposentados e garante os oficiais.
+    pub fn migrate_origins(&mut self) {
+        let retired: Vec<String> = RETIRED_ORIGINS.iter().filter_map(|o| normalize_origin(o)).collect();
+        self.origins.retain(|o| !normalize_origin(o).is_some_and(|n| retired.contains(&n)));
+        for o in DEFAULT_ORIGINS {
+            let _ = self.add_origin(o);
+        }
     }
 
     pub fn add_origin(&mut self, origin: &str) -> Result<String, String> {
@@ -91,7 +103,12 @@ pub fn config_path() -> Result<PathBuf, String> {
 
 pub fn load(path: &std::path::Path) -> Result<Config, String> {
     match std::fs::read_to_string(path) {
-        Ok(s) => serde_json::from_str(&s).map_err(|e| format!("config corrompida em {}: {e}", path.display())),
+        Ok(s) => {
+            let mut cfg: Config =
+                serde_json::from_str(&s).map_err(|e| format!("config corrompida em {}: {e}", path.display()))?;
+            cfg.migrate_origins();
+            Ok(cfg)
+        }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Config::default()),
         Err(e) => Err(format!("não consegui ler {}: {e}", path.display())),
     }
@@ -157,6 +174,12 @@ mod tests {
         assert_eq!(load(&p).unwrap(), c);
         std::fs::write(&p, "{}").unwrap();
         assert_eq!(load(&p).unwrap().origins.len(), DEFAULT_ORIGINS.len());
+        // config antiga: o endereço aposentado sai, os oficiais entram, os extras ficam
+        std::fs::write(&p, r#"{"origins":["https://janja.pvpswapedro123.workers.dev","https://outro.exemplo.dev"],"tokens":[]}"#).unwrap();
+        let c = load(&p).unwrap();
+        assert!(!c.origin_allowed(Some("https://janja.pvpswapedro123.workers.dev")));
+        assert!(c.origin_allowed(Some("https://janja.spotlightre.workers.dev")));
+        assert!(c.origin_allowed(Some("https://outro.exemplo.dev")));
         let _ = std::fs::remove_dir_all(dir);
     }
 }
