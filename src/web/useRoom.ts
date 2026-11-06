@@ -28,6 +28,8 @@ export interface RoomState {
   /** navegador tem getUserMedia e a permissão não foi negada nesta sessão */
   micAvailable: boolean
   requests: JoinRequest[]
+  /** a malha WebRTC da sala atual (o controle remoto usa o canal "control" dela) */
+  manager?: PeerManager
 }
 
 const MIC_CONSTRAINTS: MediaTrackConstraints = {
@@ -210,7 +212,8 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
           isHost: welcome.isHost,
           me: meRef.current,
           micStream: micRef.current,
-          peers: manager.views()
+          peers: manager.views(),
+          manager
         })
       } catch (err) {
         if (!disposed) patch({ status: 'erro', error: err instanceof Error ? err.message : String(err) })
@@ -223,7 +226,7 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
       managerRef.current = undefined
       signaling.close()
       meRef.current = { ...meRef.current, sharing: false, screenStreamId: undefined }
-      setState((s) => ({ ...s, screen: undefined, me: meRef.current }))
+      setState((s) => ({ ...s, screen: undefined, me: meRef.current, manager: undefined }))
     }
   }, [roomId, name, hostKey, attempt, patch, acquireMic])
 

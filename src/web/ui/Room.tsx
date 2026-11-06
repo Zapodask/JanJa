@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { roomUrl } from '../../shared/protocol'
 import { useAudioLevel, useSpeaking } from '../audio'
 import type { PeerView, Route } from '../rtc/PeerManager'
+import { useControl } from '../control/useControl'
 import { PRESETS, bitrateFor, presetById } from '../rtc/quality'
 import { getPrefs, rememberRoom, setPrefs, volumeKey } from '../storage'
 import { canShareScreen, useRoom } from '../useRoom'
 import { Avatar } from './Avatar'
+import { ControlBanner, ControlRequestModal, ControlSection } from './Control'
 import { Brand, TvOff } from './Brand'
 import { Jan } from './Pixel'
 import { Dropdown, type DropdownOption } from './Dropdown'
@@ -94,6 +96,10 @@ interface Props {
 export function Room({ roomId, name, hostKey, onLeave }: Props) {
   const { state, toggleMic, startShare, stopShare, setPreset, answerRequest, reconnect } = useRoom(roomId, name, hostKey)
   const toast = useToast()
+  const control = useControl({ manager: state.manager, screen: state.screen, peers: state.peers, notify: toast })
+  const controlling = control.controller.phase === 'active'
+  const controlledPeer = control.controlled.phase === 'idle' ? undefined : control.controlled.peer
+  const controlledBy = controlledPeer ? (state.peers.find((p) => p.id === controlledPeer)?.name ?? 'Alguém') : undefined
   const [focus, setFocus] = useState<string | null>(null)
   const [sinkId, setSinkId] = useState(() => getPrefs().sinkId)
   const [volumes, setVolumes] = useState<Record<string, number>>(() => getPrefs().volumes)
@@ -232,6 +238,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
       const t = e.target as HTMLElement | null
       if (t && (/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t.closest('[role="listbox"]'))) return
       if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (controlling) return // as teclas vão para o PC controlado
       const k = e.key.toLowerCase()
       if (k === 'm') {
         e.preventDefault()
@@ -249,7 +256,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [focus, toggleMic])
+  }, [focus, toggleMic, controlling])
 
   if (state.status === 'conectando' || state.status === 'aguardando-aprovacao' || state.status === 'erro') {
     return (
@@ -291,7 +298,8 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   const thumbs = focusedTile ? tiles.length - 1 : 0
 
   return (
-    <div className={`room ${sidebarOpen ? '' : 'collapsed'}`}>
+    <div className={`room ${sidebarOpen ? '' : 'collapsed'} ${control.controlled.phase === 'active' ? 'has-banner' : ''}`}>
+      {control.controlled.phase === 'active' && controlledBy && <ControlBanner name={controlledBy} onStop={control.stop} />}
       <aside className="sidebar">
         <div className="sidebar-inner">
           <div className="sidebar-head">
@@ -333,6 +341,13 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
               ))}
             </ul>
           </section>
+
+          <ControlSection
+            helper={control.helper}
+            onConnect={control.connectHelper}
+            onDisconnect={control.disconnectHelper}
+            onPair={control.pairHelper}
+          />
         </div>
       </aside>
 
@@ -403,6 +418,17 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
                   onFocus={() => setFocus(t.id)}
                   onToggleFocus={() => setFocus((f) => (f === t.id ? null : t.id))}
                   badge={showStats && peer ? routeInfo(peer) : undefined}
+                  control={
+                    t.local || leaving
+                      ? undefined
+                      : {
+                          state: control.controller.phase !== 'idle' && control.controller.peer === t.id ? control.controller.phase : 'idle',
+                          canRequest: control.controller.phase === 'idle',
+                          onRequest: () => control.requestControl(t.id),
+                          onRelease: control.release,
+                          onInput: control.sendInput
+                        }
+                  }
                 />
               )
             })}
@@ -503,6 +529,20 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {control.controlled.phase === 'asking' && controlledBy && (
+        <ControlRequestModal
+          key={control.controlled.peer}
+          name={controlledBy}
+          screen={state.screen}
+          helper={control.helper}
+          onConnect={control.connectHelper}
+          onDisconnect={control.disconnectHelper}
+          onPair={control.pairHelper}
+          onAllow={control.allow}
+          onRefuse={control.refuse}
+        />
       )}
     </div>
   )

@@ -97,6 +97,12 @@ const PATHS = {
       <path d="M12 11v5M12 8h.01" />
     </>
   ),
+  mouse: (
+    <>
+      <rect x="6.5" y="3" width="11" height="18" rx="5.5" />
+      <path d="M12 3v7" />
+    </>
+  ),
   sliders: (
     <>
       <path d="M4 7h9M19 7h1M4 17h1M11 17h9" />

@@ -1,3 +1,10 @@
+import {
+  CONTROL_CHANNEL_ID,
+  CONTROL_CHANNEL_LABEL,
+  encodeControl,
+  parseControl,
+  type ControlMsg
+} from '../../shared/control'
 import type { IceServer, PeerInfo, PeerState, SignalPayload } from '../../shared/protocol'
 import type { SignalingClient } from '../signaling'
 import { bitrateFor, type QualityPreset } from './quality'
@@ -22,6 +29,8 @@ interface Peer {
   isHost: boolean
   state: PeerState
   pc: RTCPeerConnection
+  /** canal negociado "control" (id 7), igual nos dois lados */
+  control: RTCDataChannel
   polite: boolean
   makingOffer: boolean
   ignoreOffer: boolean
@@ -53,6 +62,8 @@ const ICE_WATCHDOG_MS = 12_000
 export class PeerManager {
   private readonly peers = new Map<string, Peer>()
   private readonly listeners = new Set<() => void>()
+  private readonly controlListeners = new Set<(peerId: string, msg: ControlMsg) => void>()
+  private readonly controlLostListeners = new Set<(peerId: string) => void>()
   private micStream?: MediaStream
   private screenStream?: MediaStream
   private preset?: QualityPreset
@@ -106,8 +117,10 @@ export class PeerManager {
   addPeer(info: PeerInfo, initiator: boolean): void {
     if (this.peers.has(info.peerId)) return
     const pc = new RTCPeerConnection({ iceServers: this.iceServers })
+    const control = pc.createDataChannel(CONTROL_CHANNEL_LABEL, { negotiated: true, id: CONTROL_CHANNEL_ID, ordered: true })
     const peer: Peer = {
       id: info.peerId,
+      control,
       name: info.name,
       isHost: info.isHost,
       state: info.state,
@@ -124,7 +137,15 @@ export class PeerManager {
     }
     this.peers.set(peer.id, peer)
 
+    control.onmessage = (ev) => {
+      const msg = parseControl(ev.data)
+      if (msg) for (const cb of this.controlListeners) cb(peer.id, msg)
+    }
+    control.onclose = () => this.emitControlLost(peer.id)
+
     pc.onnegotiationneeded = async () => {
+      // o canal "control" também dispara este evento; quem já estava na sala espera a primeira oferta
+      if (!peer.ready) return
       try {
         peer.makingOffer = true
         await pc.setLocalDescription()
@@ -147,6 +168,7 @@ export class PeerManager {
 
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed') peer.route = 'falhou'
+      if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) this.emitControlLost(peer.id)
       if (pc.connectionState === 'connected') void this.pollStats()
       this.emit()
     }
@@ -181,10 +203,37 @@ export class PeerManager {
   removePeer(id: string): void {
     const peer = this.peers.get(id)
     if (!peer) return
-    peer.pc.close()
     this.peers.delete(id)
+    this.emitControlLost(id)
+    peer.pc.close()
     this.emit()
     this.reapplyAllBitrates()
+  }
+
+  // ---------------- canal de controle ----------------
+
+  /** Envia no canal "control" do peer. Só vai se o canal estiver aberto; devolve se enviou. */
+  sendControl(peerId: string, msg: ControlMsg): boolean {
+    const ch = this.peers.get(peerId)?.control
+    if (!ch || ch.readyState !== 'open') return false
+    ch.send(encodeControl(msg))
+    return true
+  }
+
+  /** Mensagens válidas do canal "control" (as inválidas já foram descartadas). */
+  onControl(cb: (peerId: string, msg: ControlMsg) => void): () => void {
+    this.controlListeners.add(cb)
+    return () => this.controlListeners.delete(cb)
+  }
+
+  /** O canal fechou ou a conexão com o peer caiu/saiu. */
+  onControlLost(cb: (peerId: string) => void): () => void {
+    this.controlLostListeners.add(cb)
+    return () => this.controlLostListeners.delete(cb)
+  }
+
+  private emitControlLost(peerId: string): void {
+    for (const cb of this.controlLostListeners) cb(peerId)
   }
 
   setRemoteState(id: string, state: PeerState): void {
@@ -277,9 +326,12 @@ export class PeerManager {
   dispose(): void {
     window.clearInterval(this.statsTimer)
     this.stopScreen()
+    for (const id of this.peers.keys()) this.emitControlLost(id)
     for (const peer of this.peers.values()) peer.pc.close()
     this.peers.clear()
     this.listeners.clear()
+    this.controlListeners.clear()
+    this.controlLostListeners.clear()
   }
 
   // ---------------- internos ----------------

@@ -1,0 +1,195 @@
+import { useId, useState } from 'react'
+import { HELPER_DOWNLOAD_URL, PANIC_SHORTCUT } from '../../shared/control'
+import { pickMonitor } from '../control/geometry'
+import type { HelperSnapshot, HelperStatus } from '../control/helperClient'
+import { isWholeScreen } from '../control/useControl'
+import { Avatar } from './Avatar'
+import { Icon } from './icons'
+
+interface HelperActions {
+  helper: HelperSnapshot
+  onConnect: () => void
+  onDisconnect: () => void
+  onPair: (code: string) => boolean
+}
+
+const STATUS_TEXT: Record<HelperStatus, string> = {
+  desligado: 'Desligado. Conecte para deixar amigos pedirem o controle do seu PC.',
+  procurando: 'Procurando o JanJa Helper neste PC…',
+  'precisa-parear': 'Digite o código de 6 dígitos que aparece na janela do helper.',
+  pronto: 'Conectado. Amigos podem pedir o controle do seu PC.',
+  erro: 'Não deu para falar com o helper.'
+}
+
+const STATUS_DOT: Record<HelperStatus, string> = {
+  desligado: 'idle',
+  procurando: 'wait',
+  'precisa-parear': 'wait',
+  pronto: 'ok',
+  erro: 'bad'
+}
+
+export function HelperDownloadLink() {
+  return (
+    <a href={HELPER_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
+      Baixar o JanJa Helper
+    </a>
+  )
+}
+
+function PairForm({ onPair, error }: { onPair: (code: string) => boolean; error?: string }) {
+  const [code, setCode] = useState('')
+  const id = useId()
+  return (
+    <form
+      className="pair-form"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (onPair(code)) setCode('')
+      }}
+    >
+      <label htmlFor={id} className="visually-hidden">
+        Código de pareamento
+      </label>
+      <input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        maxLength={6}
+        placeholder="000000"
+        value={code}
+        onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+      />
+      <button type="submit" className="primary" disabled={code.length !== 6}>
+        Parear
+      </button>
+      {error && <p className="error pair-error">{error}</p>}
+    </form>
+  )
+}
+
+/** Estado do helper com o que a pessoa precisa fazer agora. Usado na barra lateral e no pedido. */
+export function HelperStatusBlock({ helper, onConnect, onDisconnect, onPair }: HelperActions) {
+  const { status } = helper
+  return (
+    <div className="helper-block">
+      <p className="helper-status">
+        <i className={`dot ${STATUS_DOT[status]}`} />
+        <span>{status === 'erro' && helper.error ? helper.error : STATUS_TEXT[status]}</span>
+      </p>
+      {status === 'precisa-parear' && <PairForm onPair={onPair} error={helper.pairError} />}
+      {status === 'pronto' && helper.error && <p className="error">{helper.error}</p>}
+      <div className="helper-actions">
+        {status === 'desligado' ? (
+          <button className="wide" onClick={onConnect}>
+            Conectar ao helper
+          </button>
+        ) : (
+          <button className="wide" onClick={onDisconnect}>
+            Desconectar
+          </button>
+        )}
+      </div>
+      {(status === 'desligado' || status === 'erro') && <HelperDownloadLink />}
+    </div>
+  )
+}
+
+/** Seção "Controle remoto" da barra lateral. */
+export function ControlSection(props: HelperActions) {
+  return (
+    <section>
+      <h3>Controle remoto</h3>
+      <HelperStatusBlock {...props} />
+    </section>
+  )
+}
+
+const monitorLabel = (m: { id: number; w: number; h: number; primary: boolean }, i: number): string =>
+  `Monitor ${i + 1}${m.primary ? ' (principal)' : ''}, ${m.w}x${m.h}`
+
+/** Modal de pedido: o controlado decide. Sem clique em Permitir nada é repassado. */
+export function ControlRequestModal({
+  name,
+  screen,
+  onAllow,
+  onRefuse,
+  ...helperActions
+}: HelperActions & {
+  name: string
+  screen?: MediaStream
+  onAllow: (monitor?: number) => void
+  onRefuse: () => void
+}) {
+  const { helper } = helperActions
+  const settings = screen?.getVideoTracks()[0]?.getSettings()
+  const pick = pickMonitor(helper.monitors, settings?.width, settings?.height)
+  const [chosen, setChosen] = useState<number | undefined>()
+  const monitor = chosen !== undefined && helper.monitors.some((m) => m.id === chosen) ? chosen : pick.monitor
+  const wholeScreen = isWholeScreen(screen)
+  const ready = helper.status === 'pronto'
+  const selectId = useId()
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal control-modal" role="dialog" aria-modal="true" aria-labelledby="control-title">
+        <Avatar name={name} size={56} />
+        <h2 id="control-title">{name} quer controlar sua tela</h2>
+        <p className="muted">
+          Mouse e teclado dela vão agir no seu PC enquanto você deixar. Você pode parar a qualquer momento, e o atalho{' '}
+          <strong>{PANIC_SHORTCUT}</strong> corta na hora.
+        </p>
+
+        {!wholeScreen && (
+          <p className="error">Só dá para permitir compartilhando a tela inteira. Compartilhe o monitor todo e peça de novo.</p>
+        )}
+
+        {wholeScreen && !ready && (
+          <div className="control-help">
+            <p>Para permitir, o JanJa Helper precisa estar rodando neste PC e conectado aqui.</p>
+            <HelperStatusBlock {...helperActions} />
+          </div>
+        )}
+
+        {wholeScreen && ready && pick.needsChoice && (
+          <label className="field" htmlFor={selectId}>
+            <span>Qual monitor você está compartilhando?</span>
+            <select id={selectId} value={monitor} onChange={(e) => setChosen(Number(e.target.value))}>
+              {helper.monitors.map((m, i) => (
+                <option key={m.id} value={m.id}>
+                  {monitorLabel(m, i)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        <div className="modal-actions">
+          <button className="danger" onClick={onRefuse}>
+            Recusar
+          </button>
+          <button className="primary" disabled={!wholeScreen || !ready} onClick={() => onAllow(monitor)}>
+            Permitir
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Faixa fixa no topo durante toda a sessão: quem é controlado nunca fica sem saber. */
+export function ControlBanner({ name, onStop }: { name: string; onStop: () => void }) {
+  return (
+    <div className="control-banner" role="alert">
+      <Icon name="mouse" size={18} />
+      <span className="control-banner-text">
+        <strong>{name}</strong> está controlando seu PC
+      </span>
+      <span className="control-banner-hint">Pânico: {PANIC_SHORTCUT}</span>
+      <button className="danger" onClick={onStop}>
+        Parar
+      </button>
+    </div>
+  )
+}

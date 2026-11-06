@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent, type RefObject } from 'react'
+import type { InputMsg } from '../../shared/control'
+import { useControlCapture } from '../control/useCapture'
 import { Icon } from './icons'
 
 function useSink(ref: RefObject<HTMLMediaElement | null>, sinkId: string) {
@@ -66,6 +68,17 @@ export function VolumeSlider({
   )
 }
 
+/** Controle remoto sobre esta TV (só tiles de outras pessoas). */
+export interface TileControl {
+  state: 'idle' | 'pending' | 'active'
+  /** mostra o botão "Pedir controle" (nenhum outro pedido em andamento) */
+  canRequest: boolean
+  onRequest: () => void
+  /** cancela o pedido ou solta o controle */
+  onRelease: () => void
+  onInput: (msg: InputMsg) => void
+}
+
 interface TileProps {
   id: string
   stream: MediaStream
@@ -85,6 +98,7 @@ interface TileProps {
   onToggleFocus: () => void
   /** texto de rota/bitrate (só com estatísticas ligadas) */
   badge?: string
+  control?: TileControl
 }
 
 const IDLE_MS = 2500
@@ -102,7 +116,8 @@ export function VideoTile({
   leaving,
   onFocus,
   onToggleFocus,
-  badge
+  badge,
+  control
 }: TileProps) {
   const ref = useRef<HTMLVideoElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -117,6 +132,16 @@ export function VideoTile({
     if (ref.current) ref.current.volume = volume
   }, [volume])
   useSink(ref, sinkId)
+
+  const controlState = control?.state ?? 'idle'
+  const controlling = controlState === 'active'
+  useControlCapture({
+    active: controlling,
+    boxRef,
+    videoRef: ref,
+    onInput: (m) => control?.onInput(m),
+    onRelease: () => control?.onRelease()
+  })
 
   // acompanha a tela cheia deste tile
   useEffect(() => {
@@ -149,18 +174,40 @@ export function VideoTile({
         ref={boxRef}
         data-tile-id={id}
         tabIndex={leaving ? -1 : 0}
-        className={`tile ${full ? 'full' : ''} ${idle ? 'idle' : ''}`}
+        className={`tile ${full ? 'full' : ''} ${idle ? 'idle' : ''} ${controlling ? 'controlling' : ''}`}
         onClick={() => {
-          if (!focused) onFocus()
+          if (!focused && !controlling) onFocus()
         }}
-        onDoubleClick={() => toggleFullscreen(boxRef.current)}
+        onDoubleClick={() => {
+          if (!controlling) toggleFullscreen(boxRef.current)
+        }}
         onMouseMove={full ? wake : undefined}
         aria-label={`Tela de ${name}`}
       >
         <video ref={ref} autoPlay playsInline muted={local} />
         <span className="tile-name">{local ? `${name} (você)` : name}</span>
 
+        {control && controlState !== 'idle' && (
+          <div className="control-tag" onClick={stop} onDoubleClick={stop} role="status">
+            <span>{controlling ? 'Você está controlando. Esc Esc para soltar' : `Esperando ${name}…`}</span>
+            <button type="button" className="sm" onClick={control.onRelease}>
+              {controlling ? 'Soltar' : 'Cancelar'}
+            </button>
+          </div>
+        )}
+
         <div className="tile-bar" onClick={stop} onDoubleClick={stop}>
+          {!local && control && controlState === 'idle' && control.canRequest && (
+            <button
+              type="button"
+              className="icon-btn sm"
+              onClick={control.onRequest}
+              data-tip={`Pedir controle do PC de ${name}`}
+              aria-label={`Pedir controle do PC de ${name}`}
+            >
+              <Icon name="mouse" size={16} />
+            </button>
+          )}
           {!local && onVolume && <VolumeSlider value={volume} onChange={onVolume} label={`Volume da tela de ${name}`} />}
           {!thumb && (
             <button

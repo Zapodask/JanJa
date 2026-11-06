@@ -45,6 +45,19 @@ export const saveName = (name: string): void => save('name', cleanName(name))
 export const hostKeyFor = (roomId: string): string | undefined => load(`host.${roomId}`) || undefined
 export const saveHostKey = (roomId: string, key: string): void => save(`host.${roomId}`, key)
 
+// ---------- helper do controle remoto ----------
+
+/** Token do pareamento com o JanJa Helper deste PC. Vale só neste navegador. */
+export const getHelperToken = (): string | undefined => load('helperToken') || undefined
+export const setHelperToken = (token: string | undefined): void => {
+  try {
+    if (token) localStorage.setItem(PREFIX + 'helperToken', token)
+    else localStorage.removeItem(PREFIX + 'helperToken')
+  } catch {
+    /* sem armazenamento: pareia de novo na próxima */
+  }
+}
+
 // ---------- preferências ----------
 
 export interface Prefs {

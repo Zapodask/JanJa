@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": { "lib": ["ES2023", "DOM", "DOM.Iterable"], "types": ["node"] },
-  "include": ["tests/**/*", "src/shared/**/*", "src/worker/core.ts", "src/web/rtc/**/*", "src/web/signaling.ts", "vite.config.ts", "vitest.config.ts"]
+  "include": ["tests/**/*", "src/shared/**/*", "src/worker/core.ts", "src/web/rtc/**/*", "src/web/control/*.ts", "src/web/storage.ts", "src/web/signaling.ts", "vite.config.ts", "vitest.config.ts"]
 }
