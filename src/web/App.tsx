@@ -36,11 +36,6 @@ export function App() {
 
   return (
     <ToastProvider>
-      <div className="bg" aria-hidden="true">
-        <i className="blob b1" />
-        <i className="blob b2" />
-        <i className="blob b3" />
-      </div>
       {screen}
     </ToastProvider>
   )

@@ -87,6 +87,7 @@ const PATHS = {
     </>
   ),
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
+  chevron: <path d="M6 9l6 6 6-6" />,
   plus: <path d="M12 5v14M5 12h14" />,
   crown: <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z" />,
   warn: <path d="M12 4l9 16H3L12 4zM12 10v4M12 17h.01" />,
@@ -96,11 +97,11 @@ const PATHS = {
       <path d="M12 11v5M12 8h.01" />
     </>
   ),
-  spark: <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3zM19 17l.7 1.8L21.5 19.5l-1.8.7L19 22l-.7-1.8-1.8-.7 1.8-.7L19 17z" />,
-  shield: (
+  sliders: (
     <>
-      <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z" />
-      <path d="M9 12l2 2 4-4" />
+      <path d="M4 7h9M19 7h1M4 17h1M11 17h9" />
+      <circle cx="16" cy="7" r="2.5" />
+      <circle cx="8" cy="17" r="2.5" />
     </>
   )
 } satisfies Record<string, ReactNode>

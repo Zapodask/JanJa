@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { roomUrl } from '../../shared/protocol'
 import { useAudioLevel, useSpeaking } from '../audio'
 import type { PeerView, Route } from '../rtc/PeerManager'
-import { PRESETS, presetById, uploadEstimateMbps } from '../rtc/quality'
+import { PRESETS, bitrateFor, presetById } from '../rtc/quality'
 import { getPrefs, rememberRoom, setPrefs, volumeKey } from '../storage'
 import { canShareScreen, useRoom } from '../useRoom'
 import { Avatar } from './Avatar'
-import { Brand, Loader } from './Brand'
-import { Icon } from './icons'
+import { Brand, TvOff } from './Brand'
+import { Dropdown, type DropdownOption } from './Dropdown'
+import { Icon, type IconName } from './icons'
 import { RemoteAudio, toggleFullscreen, VideoTile, VolumeSlider } from './media'
 import { useToast } from './Toasts'
 
@@ -18,11 +19,13 @@ const ROUTE_LABEL: Record<Route, string> = {
   falhou: 'falhou'
 }
 
+const QUALITY_ICON: Record<string, IconName> = { texto: 'panel', equilibrado: 'grid', jogo: 'screen', jogo60: 'focus' }
+
 function routeInfo(p: PeerView): string {
   const parts = [ROUTE_LABEL[p.route]]
   if (p.rttMs !== undefined) parts.push(`${p.rttMs} ms`)
   if (p.inKbps) parts.push(`${(p.inKbps / 1000).toFixed(1)} Mbps`)
-  return parts.join(' · ')
+  return parts.join(', ')
 }
 
 function useOutputDevices() {
@@ -45,8 +48,6 @@ function useOutputDevices() {
 /** Linha de uma pessoa na barra lateral; quem fala ganha aura. */
 function PersonRow({
   name,
-  isHost,
-  self,
   stream,
   muted,
   detail,
@@ -54,8 +55,6 @@ function PersonRow({
   onVolume
 }: {
   name: string
-  isHost: boolean
-  self?: boolean
   stream?: MediaStream
   muted: boolean
   detail?: string
@@ -71,19 +70,13 @@ function PersonRow({
       <div className="person-body">
         <strong>
           {name}
-          {self && <small className="muted"> (você)</small>}
-          {isHost && (
-            <small className="tag">
-              <Icon name="crown" size={11} /> host
-            </small>
-          )}
         </strong>
-        {detail && <small className="route muted">{detail}</small>}
+        {detail && <small className="detail">{detail}</small>}
         {onVolume && volume !== undefined && (
           <VolumeSlider value={volume} onChange={onVolume} label={`Volume da voz de ${name}`} />
         )}
       </div>
-      <span className={`mic-state ${muted ? 'off' : 'on'}`} title={muted ? 'Mic desligado' : 'Mic ligado'}>
+      <span className={`mic-state ${muted ? 'off' : 'on'}`} data-tip={muted ? 'Mic desligado' : 'Mic ligado'} data-tip-pos="left">
         <Icon name={muted ? 'micOff' : 'mic'} size={15} />
       </span>
     </li>
@@ -147,8 +140,8 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
     const prev = seen.current
     seen.current = now
     if (!prev) return
-    for (const [id, n] of now) if (!prev.has(id)) toast(`${n} entrou na sala`, 'ok')
-    for (const [id, n] of prev) if (!now.has(id)) toast(`${n} saiu da sala`, 'info')
+    for (const [id, n] of now) if (!prev.has(id)) toast(`${n} entrou`, 'ok')
+    for (const [id, n] of prev) if (!now.has(id)) toast(`${n} saiu`, 'info')
   }, [state.status, state.peers, toast])
 
   // erro do microfone vira aviso
@@ -159,7 +152,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   const copy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(link)
-      toast('Link da sala copiado', 'ok')
+      toast('Link copiado', 'ok')
     } catch {
       window.prompt('Copie o link da sala:', link)
     }
@@ -188,6 +181,22 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
     for (const p of state.peers) if (p.screen) list.push({ id: p.id, label: p.name, stream: p.screen })
     return list
   }, [state.screen, state.peers, name])
+
+  // telas que pararam ficam montadas por ~350 ms para rodar a animação de TV desligando
+  const [ghosts, setGhosts] = useState<typeof tiles>([])
+  const prevTiles = useRef(tiles)
+  useEffect(() => {
+    const ids = new Set(tiles.map((t) => t.id))
+    const gone = prevTiles.current.filter((t) => !ids.has(t.id))
+    prevTiles.current = tiles
+    setGhosts((g) => [...g.filter((x) => !ids.has(x.id)), ...gone.filter((t) => !g.some((x) => x.id === t.id))])
+    if (!gone.length) return
+    setTimeout(() => {
+      const goneIds = new Set(gone.map((t) => t.id))
+      setGhosts((g) => g.filter((x) => !goneIds.has(x.id)))
+    }, 380)
+  }, [tiles])
+  const shown = [...tiles, ...ghosts.filter((g) => !tiles.some((t) => t.id === g.id))]
 
   // se a tela em foco sumiu, volta para a grade
   const focusedTile = tiles.find((t) => t.id === focus)
@@ -220,7 +229,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
-      if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return
+      if (t && (/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t.closest('[role="listbox"]'))) return
       if (e.ctrlKey || e.metaKey || e.altKey) return
       const k = e.key.toLowerCase()
       if (k === 'm') {
@@ -244,14 +253,13 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   if (state.status === 'conectando' || state.status === 'aguardando-aprovacao' || state.status === 'erro') {
     return (
       <main className="center">
-        <div className="card narrow enter wait">
-          <Brand />
-          {state.status !== 'erro' && <Loader />}
-          <h2>
-            {state.status === 'conectando' && 'Entrando na sala...'}
-            {state.status === 'aguardando-aprovacao' && 'Esperando quem criou a sala deixar você entrar...'}
+        <div className="wait">
+          <TvOff noise={state.status !== 'erro'} />
+          <h1>
+            {state.status === 'conectando' && 'Entrando na sala…'}
+            {state.status === 'aguardando-aprovacao' && 'Esperando quem criou a sala deixar você entrar'}
             {state.status === 'erro' && 'Não deu para entrar'}
-          </h2>
+          </h1>
           {state.error && <p className="error">{state.error}</p>}
           <div className="modal-actions">
             {state.status === 'erro' && <button onClick={reconnect}>Tentar de novo</button>}
@@ -262,38 +270,49 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
     )
   }
 
+  const qualityOptions: DropdownOption[] = PRESETS.map((p) => ({
+    value: p.id,
+    label: p.label.replace(/\s*\(.*\)\s*$/, ''),
+    sub: `${p.height}p, ${p.fps} fps, ~${Math.round(bitrateFor(p, Math.max(viewers, 1)) / 1_000_000)} Mbps por pessoa`,
+    icon: QUALITY_ICON[p.id]
+  }))
+  const outputOptions: DropdownOption[] = outputs.map((d) => ({
+    value: d.deviceId,
+    label: d.label || 'Saída de áudio',
+    sub: d.deviceId === 'default' ? 'Padrão do sistema' : 'Dispositivo de saída',
+    icon: 'speaker'
+  }))
   const micDisabled = !state.micAvailable
   const request = state.requests[0]
   const thumbs = focusedTile ? tiles.length - 1 : 0
 
   return (
-    <div className={`room enter ${sidebarOpen ? '' : 'collapsed'}`}>
+    <div className={`room ${sidebarOpen ? '' : 'collapsed'}`}>
       <aside className="sidebar">
         <div className="sidebar-inner">
           <div className="sidebar-head">
             <Brand />
-            <button className="icon-btn" onClick={toggleSidebar} title="Recolher barra lateral" aria-label="Recolher barra lateral">
-              <Icon name="panel" size={18} />
+            <button
+              className="icon-btn"
+              onClick={toggleSidebar}
+              data-tip="Recolher barra lateral"
+              data-tip-pos="left"
+              aria-label="Recolher barra lateral"
+            >
+              <Icon name="panel" size={20} />
             </button>
           </div>
 
-          <section>
-            <h3>Convide os amigos</h3>
-            <button className="primary wide" onClick={() => void copy()}>
-              <Icon name="link" size={16} /> Copiar link da sala
-            </button>
-            <p className="muted small">Quem abrir o link entra direto pelo navegador.</p>
-          </section>
+          <button className="wide" onClick={() => void copy()}>
+            <Icon name="link" size={16} /> Copiar link da sala
+          </button>
 
           <section>
-            <h3>
-              <Icon name="users" size={15} /> Na sala <span className="count">{state.peers.length + 1}</span>
-            </h3>
+            <h3>Na sala ({state.peers.length + 1})</h3>
             <ul className="people">
               <PersonRow
                 name={name}
-                isHost={state.isHost}
-                self
+                detail={state.isHost ? 'você, criou a sala' : 'você'}
                 stream={state.micStream}
                 muted={micMuted || !state.micStream}
               />
@@ -301,10 +320,9 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
                 <PersonRow
                   key={p.id}
                   name={p.name}
-                  isHost={p.isHost}
                   stream={p.mic}
                   muted={p.state.micMuted}
-                  detail={showStats ? routeInfo(p) : undefined}
+                  detail={[p.isHost ? 'criou a sala' : '', showStats ? routeInfo(p) : ''].filter(Boolean).join(', ') || undefined}
                   volume={vol('mic', p.name)}
                   onVolume={(v) => setVol('mic', p.name, v)}
                 />
@@ -323,62 +341,55 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
 
       <main className="stage">
         {!sidebarOpen && (
-          <button className="icon-btn float-toggle" onClick={toggleSidebar} title="Mostrar barra lateral" aria-label="Mostrar barra lateral">
-            <Icon name="panel" size={18} />
-            <span className="count">{state.peers.length + 1}</span>
+          <button
+            className="icon-btn float-toggle"
+            onClick={toggleSidebar}
+            data-tip={`Mostrar barra lateral (${state.peers.length + 1} na sala)`}
+            data-tip-pos="bottom"
+            aria-label="Mostrar barra lateral"
+          >
+            <Icon name="panel" size={20} />
           </button>
         )}
 
         {state.status === 'caiu' && (
-          <div className="banner warn enter">
-            <Icon name="warn" size={18} />
+          <div className="banner">
             <span>{state.error ?? 'A conexão com a sala caiu.'}</span>
             <button onClick={reconnect}>Reconectar</button>
           </div>
         )}
 
-        {tiles.length === 0 ? (
+        {shown.length === 0 ? (
           <div className="empty">
-            <div className="art" aria-hidden="true">
-              <span className="ring r1" />
-              <span className="ring r2" />
-              <span className="ring r3" />
-              <div className="monitor">
-                <Icon name="screen" size={44} />
-              </div>
-              <i className="orb a" />
-              <i className="orb b" />
-              <i className="orb c" />
-            </div>
-            <h2>Ninguém está compartilhando a tela ainda</h2>
+            <TvOff />
+            <h2>Ninguém está compartilhando.</h2>
             {canShare ? (
-              <>
-                <p className="muted">Escolha uma tela, janela ou aba e os amigos assistem na hora.</p>
-                <button className="primary big glow" onClick={() => void share()}>
-                  <Icon name="screen" size={20} /> Compartilhar minha tela
-                </button>
-              </>
+              <button className="primary big" onClick={() => void share()}>
+                Compartilhar minha tela
+              </button>
             ) : (
-              <p className="muted small">Este navegador só assiste. Para compartilhar, use o Chrome ou o Edge no PC.</p>
+              <p className="muted">Este navegador só assiste. Para compartilhar, use o Chrome ou o Edge no PC.</p>
             )}
           </div>
         ) : (
           <div
-            className={`grid ${focusedTile ? 'has-focus' : `n${Math.min(tiles.length, 4)}`}`}
+            className={`grid ${focusedTile ? 'has-focus' : `n${Math.min(shown.length, 4)}`}`}
             style={{ '--thumbs': Math.max(thumbs, 1) } as CSSProperties}
           >
-            {tiles.map((t, i) => {
+            {shown.map((t) => {
+              const leaving = !tiles.some((x) => x.id === t.id)
               const peer = t.local ? undefined : peerById(t.id)
+              const who = peer?.name ?? t.label
               return (
                 <VideoTile
                   key={t.id}
                   id={t.id}
-                  index={i}
                   stream={t.stream}
-                  label={t.label}
+                  name={who}
                   local={t.local}
-                  volume={t.local ? 1 : vol('screen', peer?.name ?? t.label)}
-                  onVolume={t.local ? undefined : (v) => setVol('screen', peer?.name ?? t.label, v)}
+                  leaving={leaving}
+                  volume={t.local ? 1 : vol('screen', who)}
+                  onVolume={t.local ? undefined : (v) => setVol('screen', who, v)}
                   sinkId={effectiveSink}
                   focused={focus === t.id}
                   thumb={!!focusedTile && focus !== t.id}
@@ -391,78 +402,79 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
           </div>
         )}
 
-        <footer className="dock">
+        <footer className="controls">
           <button
-            className={`dock-btn mic ${micMuted ? 'muted' : 'live'} ${mySpeaking ? 'speaking' : ''}`}
-            style={{ '--lvl': mySpeaking ? Math.min(1, 0.2 + myLevel * 1.6) : 0 } as CSSProperties}
+            className={`ctl mic ${micMuted ? 'is-muted' : 'is-live'}`}
+            style={{ '--ring': mySpeaking ? 2 + Math.min(1, myLevel * 1.6) * 4 : 0 } as CSSProperties}
             disabled={micDisabled}
             onClick={() => void toggleMic()}
-            title={micDisabled ? (state.micError ?? 'Sem microfone') : micMuted ? 'Ativar mic (M)' : 'Mutar mic (M)'}
+            data-tip={micDisabled ? (state.micError ?? 'Sem microfone') : 'Atalho: M'}
             aria-pressed={!micMuted}
           >
             <Icon name={micMuted || micDisabled ? 'micOff' : 'mic'} size={20} />
-            <span className="lbl">{micDisabled ? 'Sem mic' : micMuted ? 'Mic' : 'No ar'}</span>
+            <span className="lbl">{micDisabled ? 'Sem mic' : micMuted ? 'Ligar mic' : 'Mutar'}</span>
           </button>
 
           {state.screen ? (
-            <button className="dock-btn danger" onClick={stopShare} title="Parar de compartilhar">
+            <button className="danger" onClick={stopShare}>
               <Icon name="stop" size={20} />
               <span className="lbl">Parar</span>
             </button>
           ) : (
             canShare && (
-              <button className="dock-btn accent" onClick={() => void share()} title="Compartilhar tela">
+              <button className="primary" onClick={() => void share()}>
                 <Icon name="screen" size={20} />
-                <span className="lbl">Compartilhar</span>
+                <span className="lbl">Compartilhar tela</span>
               </button>
             )
           )}
 
           {canShare && (
-            <label
-              className="dock-select"
-              title={`Qualidade · upload estimado ~${uploadEstimateMbps(state.preset, viewers).toFixed(1)} Mbps`}
-            >
-              <Icon name="spark" size={18} />
-              <select value={state.preset.id} onChange={(e) => setPreset(presetById(e.target.value))} aria-label="Qualidade">
-                {PRESETS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-              <small className="est">~{uploadEstimateMbps(state.preset, viewers).toFixed(1)} Mbps</small>
-            </label>
+            <Dropdown
+              placement="up"
+              icon="sliders"
+              ariaLabel="Qualidade"
+              value={state.preset.id}
+              options={qualityOptions}
+              onChange={(v) => setPreset(presetById(v))}
+              buttonText={
+                <>
+                  Qualidade <small>{qualityOptions.find((o) => o.value === state.preset.id)?.label}</small>
+                </>
+              }
+            />
           )}
 
           {outputs.length > 1 && (
-            <label className="dock-select compact" title="Saída de áudio da sala">
-              <Icon name="speaker" size={18} />
-              <select value={effectiveSink} onChange={(e) => changeSink(e.target.value)} aria-label="Saída de áudio">
-                {outputs.map((d) => (
-                  <option key={d.deviceId} value={d.deviceId}>
-                    {d.label || 'Saída de áudio'}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Dropdown
+              placement="up"
+              icon="speaker"
+              ariaLabel="Saída de áudio"
+              value={effectiveSink}
+              options={outputOptions}
+              onChange={changeSink}
+              buttonText="Saída de áudio"
+            />
           )}
 
-          <span className="dock-sep" />
-
           <button
-            className={`dock-btn ${showStats ? 'on' : ''}`}
+            className={`icon-btn stats-toggle ${showStats ? 'on' : ''}`}
             onClick={toggleStats}
-            title={showStats ? 'Esconder estatísticas' : 'Mostrar estatísticas'}
+            data-tip={showStats ? 'Esconder estatísticas' : 'Mostrar estatísticas'}
+            aria-label="Estatísticas de conexão"
             aria-pressed={showStats}
           >
             <Icon name="chart" size={20} />
           </button>
-          <button className="dock-btn" onClick={() => void copy()} title="Copiar link da sala">
+          <button className="ctl" onClick={() => void copy()}>
             <Icon name="link" size={20} />
+            <span className="lbl">Copiar link</span>
           </button>
-          <button className="dock-btn danger-soft" onClick={onLeave} title="Sair da sala">
+
+          <span className="spacer" />
+          <button className="danger" onClick={onLeave}>
             <Icon name="logout" size={20} />
+            <span className="lbl">Sair</span>
           </button>
         </footer>
       </main>
@@ -470,7 +482,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
       {request && (
         <div className="modal-backdrop">
           <div className="modal narrow" role="dialog" aria-modal="true" key={request.requestId}>
-            <Avatar name={request.name} size={64} />
+            <Avatar name={request.name} size={56} />
             <h2>{request.name} quer entrar na sala</h2>
             <p className="muted">Só aceite se você reconhece quem é.</p>
             {state.requests.length > 1 && <p className="small muted">Mais {state.requests.length - 1} esperando.</p>}

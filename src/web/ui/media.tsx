@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent, type RefObject } from 'react'
-import { Avatar } from './Avatar'
 import { Icon } from './icons'
 
 function useSink(ref: RefObject<HTMLMediaElement | null>, sinkId: string) {
@@ -49,7 +48,7 @@ export function VolumeSlider({
   }
   return (
     <span className="vol" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
-      <button type="button" className="icon-btn sm" onClick={toggleMute} title={value > 0 ? 'Silenciar' : 'Reativar som'} aria-label={`Silenciar ${label}`}>
+      <button type="button" className="icon-btn sm" onClick={toggleMute} data-tip={value > 0 ? 'Silenciar' : 'Reativar som'} aria-label={`Silenciar ${label}`}>
         <Icon name={value > 0 ? 'volume' : 'volume0'} size={16} />
       </button>
       <input
@@ -70,7 +69,8 @@ export function VolumeSlider({
 interface TileProps {
   id: string
   stream: MediaStream
-  label: string
+  /** apelido de quem compartilha */
+  name: string
   /** a própria tela fica sempre muda localmente */
   local?: boolean
   volume?: number
@@ -79,11 +79,12 @@ interface TileProps {
   focused: boolean
   /** outra tela está em foco: esta vira miniatura */
   thumb: boolean
+  /** a tela parou: roda a animação de TV desligando antes de sair */
+  leaving?: boolean
   onFocus: () => void
   onToggleFocus: () => void
   /** texto de rota/bitrate (só com estatísticas ligadas) */
   badge?: string
-  index: number
 }
 
 const IDLE_MS = 2500
@@ -91,17 +92,17 @@ const IDLE_MS = 2500
 export function VideoTile({
   id,
   stream,
-  label,
+  name,
   local,
   volume = 1,
   onVolume,
   sinkId,
   focused,
   thumb,
+  leaving,
   onFocus,
   onToggleFocus,
-  badge,
-  index
+  badge
 }: TileProps) {
   const ref = useRef<HTMLVideoElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -140,44 +141,33 @@ export function VideoTile({
   }, [full, wake])
 
   const stop = (e: MouseEvent) => e.stopPropagation()
+  const who = local ? 'Você está compartilhando' : `${name} está compartilhando`
 
   return (
-    <div
-      ref={boxRef}
-      data-tile-id={id}
-      tabIndex={0}
-      className={`tile ${focused ? 'focused' : ''} ${thumb ? 'thumb' : ''} ${full ? 'full' : ''} ${idle ? 'idle' : ''}`}
-      style={{ '--i': index } as CSSProperties}
-      onClick={() => {
-        if (!focused) onFocus()
-      }}
-      onDoubleClick={() => toggleFullscreen(boxRef.current)}
-      onMouseMove={full ? wake : undefined}
-      aria-label={`Tela de ${label}`}
-    >
-      <video ref={ref} autoPlay playsInline muted={local} />
-      <div className="tile-glow" aria-hidden="true" />
+    <figure className={`cell ${focused ? 'focused' : ''} ${thumb ? 'thumb' : ''} ${leaving ? 'leaving' : ''}`}>
+      <div
+        ref={boxRef}
+        data-tile-id={id}
+        tabIndex={leaving ? -1 : 0}
+        className={`tile ${full ? 'full' : ''} ${idle ? 'idle' : ''}`}
+        onClick={() => {
+          if (!focused) onFocus()
+        }}
+        onDoubleClick={() => toggleFullscreen(boxRef.current)}
+        onMouseMove={full ? wake : undefined}
+        aria-label={`Tela de ${name}`}
+      >
+        <video ref={ref} autoPlay playsInline muted={local} />
+        <span className="tile-name">{local ? `${name} (você)` : name}</span>
 
-      <div className="tile-top" onClick={stop} onDoubleClick={stop}>
-        <span className="live">
-          <i /> ao vivo
-        </span>
-        <span className="tile-name">
-          <Avatar name={label.replace(/\s*\(você\)$/, '')} size={22} />
-          {label}
-        </span>
-        {badge && <span className="badge">{badge}</span>}
-      </div>
-
-      <div className="tile-bar" onClick={stop} onDoubleClick={stop}>
-        {!local && onVolume ? <VolumeSlider value={volume} onChange={onVolume} label={`Volume da tela de ${label}`} /> : <span />}
-        <span className="tile-actions">
+        <div className="tile-bar" onClick={stop} onDoubleClick={stop}>
+          {!local && onVolume && <VolumeSlider value={volume} onChange={onVolume} label={`Volume da tela de ${name}`} />}
           {!thumb && (
             <button
               type="button"
               className="icon-btn sm"
               onClick={onToggleFocus}
-              title={focused ? 'Voltar para a grade (Esc)' : 'Colocar em foco'}
+              data-tip={focused ? 'Voltar para a grade (Esc)' : 'Colocar em foco'}
               aria-label={focused ? 'Voltar para a grade' : 'Colocar em foco'}
             >
               <Icon name={focused ? 'grid' : 'focus'} size={16} />
@@ -187,13 +177,21 @@ export function VideoTile({
             type="button"
             className="icon-btn sm"
             onClick={() => toggleFullscreen(boxRef.current)}
-            title={full ? 'Sair da tela cheia (F)' : 'Tela cheia (F)'}
+            data-tip={full ? 'Sair da tela cheia (F)' : 'Tela cheia (F)'}
             aria-label={full ? 'Sair da tela cheia' : 'Tela cheia'}
           >
             <Icon name={full ? 'shrink' : 'expand'} size={16} />
           </button>
-        </span>
+        </div>
+        <div className="tv-flash" aria-hidden="true" />
       </div>
-    </div>
+      <figcaption className="caption">
+        <span className="onair">
+          <i /> ao vivo
+        </span>
+        <span className="caption-text">{who}</span>
+        {badge && <span className="stats">{badge}</span>}
+      </figcaption>
+    </figure>
   )
 }

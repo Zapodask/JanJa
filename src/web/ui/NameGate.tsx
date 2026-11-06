@@ -3,7 +3,6 @@ import { MAX_NAME_LENGTH } from '../../shared/protocol'
 import { cleanName, saveName } from '../storage'
 import { Avatar } from './Avatar'
 import { Brand } from './Brand'
-import { Icon } from './icons'
 
 /** Quem abre o link da sala pela primeira vez escolhe o apelido antes de entrar. */
 export function NameGate({
@@ -27,16 +26,16 @@ export function NameGate({
 
   return (
     <main className="center">
-      <form className="card narrow enter" onSubmit={submit}>
+      <form className="panel narrow" onSubmit={submit}>
         <Brand />
-        <h2>Você foi convidado para uma sala</h2>
+        <h1>Você foi convidado para uma sala</h1>
         <p className="room-code">
-          <Icon name="link" size={14} /> <code>{roomId}</code>
+          Código <code>{roomId}</code>
         </p>
-        <div className="name-row">
-          <Avatar name={draft || '?'} size={48} />
-          <label className="field grow">
-            <span>Seu apelido</span>
+        <label className="field">
+          <span>Seu apelido</span>
+          <span className="name-input">
+            <Avatar name={draft || '?'} size={36} />
             <input
               value={draft}
               maxLength={MAX_NAME_LENGTH}
@@ -44,14 +43,14 @@ export function NameGate({
               placeholder="Como os amigos vão te ver"
               autoFocus
             />
-          </label>
-        </div>
+          </span>
+        </label>
         <div className="modal-actions">
           <button type="button" onClick={onCancel}>
             Voltar
           </button>
           <button className="primary" type="submit" disabled={!cleanName(draft)}>
-            Entrar na sala <Icon name="arrow" size={16} />
+            Entrar na sala
           </button>
         </div>
       </form>
