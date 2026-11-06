@@ -162,7 +162,7 @@ export function HelperStatusBlock({ helper, onConnect, onDisconnect, onPair }: H
 /** Seção "Controle remoto" da barra lateral. */
 export function ControlSection(props: HelperActions) {
   return (
-    <section>
+    <section data-tour="control">
       <h3>Controle remoto</h3>
       <HelperStatusBlock {...props} />
     </section>

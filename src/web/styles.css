@@ -344,3 +344,35 @@ a.button.wide { width: 100%; }
 .control-tag { position: absolute; z-index: 3; top: 8px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 16px); display: flex; align-items: center; gap: 12px; padding: 4px 4px 4px 12px; border-radius: var(--r-ctl); background: var(--sofa); border: 1px solid var(--lamp); font-size: 13px; font-weight: 600; cursor: default; }
 .control-tag span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .control-tag button.sm { height: 28px; padding: 0 10px; font-size: 13px; }
+
+/* ---------- tour (driver.js) ---------- */
+.head-actions { display: flex; gap: 4px; }
+button.link { --bg: transparent; --bg-h: transparent; --bd: transparent; --bd-h: transparent; --fg: var(--dust); display: inline; height: auto; padding: 0; font-weight: 400; font-size: inherit; text-decoration: underline; text-underline-offset: 3px; }
+button.link:hover:not(:disabled) { --fg: var(--paper); }
+.driver-popover.janja-tour { background: var(--sofa); color: var(--paper); border: 1px solid var(--rug); border-radius: var(--r-panel); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); padding: 16px; min-width: 280px; max-width: 340px; font-family: inherit; }
+.janja-tour .driver-popover-title { font-family: inherit; font-stretch: 120%; font-weight: 700; font-size: 18px; letter-spacing: -0.01em; line-height: 1.25; color: var(--paper); text-shadow: none; padding-right: 28px; }
+.janja-tour .driver-popover-description { font-size: 14px; line-height: 1.5; color: var(--paper); margin-top: 8px; }
+.janja-tour .driver-popover-close-btn { top: 10px; right: 8px; width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--r-ctl); color: var(--dust); font-size: 18px; }
+.janja-tour .driver-popover-close-btn:hover { background: var(--rug); color: var(--paper); }
+.janja-tour .driver-popover-footer { margin-top: 16px; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
+.janja-tour .driver-popover-progress-text { color: var(--dust); font-size: 13px; font-variant-numeric: tabular-nums; margin-right: auto; }
+.janja-tour .driver-popover-navigation-btns { flex-grow: 0; gap: 8px; }
+.janja-tour .driver-popover-navigation-btns button + button { margin-left: 0; }
+.janja-tour .driver-popover-footer-btn { height: 32px; padding: 0 12px; display: inline-flex; align-items: center; border-radius: var(--r-ctl); border: 1px solid var(--rug); background: var(--rug); color: var(--paper); font-size: 13px; font-weight: 600; text-shadow: none; transition: background-color 0.15s, border-color 0.15s, transform 0.12s; }
+.janja-tour .driver-popover-footer-btn:hover { border-color: var(--dust); background: var(--rug); }
+.janja-tour .driver-popover-footer-btn:active { transform: translateY(1px); }
+.janja-tour .driver-popover-footer-btn:focus-visible, .janja-tour .driver-popover-close-btn:focus-visible, .janja-skip:focus-visible { outline: 2px solid var(--lamp); outline-offset: 2px; }
+.janja-tour .driver-popover-next-btn { background: var(--lamp); border-color: var(--lamp); color: var(--wall); font-weight: 700; }
+.janja-tour .driver-popover-next-btn:hover { background: var(--lamp-hi); border-color: var(--lamp-hi); transform: translateY(-1px); }
+.janja-skip { all: unset; box-sizing: border-box; order: -1; cursor: pointer; color: var(--dust); font-size: 13px; border-radius: var(--r-ctl); padding: 4px 0; }
+.janja-skip:hover { color: var(--paper); text-decoration: underline; text-underline-offset: 3px; }
+.janja-tour .driver-popover-arrow { border-width: 6px; }
+.janja-tour .driver-popover-arrow-side-top { border-top-color: var(--sofa); }
+.janja-tour .driver-popover-arrow-side-bottom { border-bottom-color: var(--sofa); }
+.janja-tour .driver-popover-arrow-side-left { border-left-color: var(--sofa); }
+.janja-tour .driver-popover-arrow-side-right { border-right-color: var(--sofa); }
+.tour-jan { display: flex; align-items: center; gap: 12px; }
+.tour-jan svg { flex: none; image-rendering: pixelated; }
+
+/* no primeiro passo não há para onde voltar */
+.driver-popover .driver-popover-prev-btn.driver-popover-btn-disabled, .driver-popover .driver-popover-prev-btn:disabled { display: none; }

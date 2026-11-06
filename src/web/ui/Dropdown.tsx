@@ -22,10 +22,12 @@ interface Props {
   tip?: string
   /** texto fixo no botão (em vez do nome da opção) */
   buttonText?: ReactNode
+  /** marca para o tour guiado */
+  tour?: string
 }
 
 /** Select próprio: listbox acessível com teclado, clique fora e animação. */
-export function Dropdown({ value, options, onChange, ariaLabel, icon, placement = 'down', tip, buttonText }: Props) {
+export function Dropdown({ value, options, onChange, ariaLabel, icon, placement = 'down', tip, buttonText, tour }: Props) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const root = useRef<HTMLDivElement>(null)
@@ -116,7 +118,7 @@ export function Dropdown({ value, options, onChange, ariaLabel, icon, placement 
   }
 
   return (
-    <div ref={root} className={`dd ${placement} ${open ? 'open' : ''}`}>
+    <div ref={root} className={`dd ${placement} ${open ? 'open' : ''}`} data-tour={tour}>
       <button
         ref={btn}
         type="button"

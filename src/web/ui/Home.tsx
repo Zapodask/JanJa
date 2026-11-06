@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { CreateRoomResponseSchema, MAX_NAME_LENGTH, parseRoomInput } from '../../shared/protocol'
 import {
   cleanName,
+  getPrefs,
   forgetRoom,
   recentRooms,
   saveApproval,
@@ -15,6 +16,8 @@ import { Avatar } from './Avatar'
 import { Brand } from './Brand'
 import { Icon } from './icons'
 import { Jan, PixelTv } from './Pixel'
+import { startTour, stopTour } from './tour'
+import { HOME_STEPS, shouldShowTour } from './tourLogic'
 
 interface Props {
   name: string
@@ -51,6 +54,13 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
   // momento único ao carregar: Jan aponta o controle e a TV liga; depois ele volta a respirar
   const [pose, setPose] = useState<'remote' | 'idle'>('remote')
   const [tvOn, setTvOn] = useState(false)
+  // tour curto na primeira visita, depois que o Jan terminou o número do controle remoto
+  useEffect(() => {
+    if (!shouldShowTour(getPrefs().homeTourDone)) return
+    const t = setTimeout(() => startTour('home', HOME_STEPS), 2500)
+    return () => clearTimeout(t)
+  }, [])
+  useEffect(() => () => stopTour(true), [])
   useEffect(() => {
     const a = setTimeout(() => setTvOn(true), 700)
     const b = setTimeout(() => setPose('idle'), 2800)
@@ -127,7 +137,7 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
         </p>
       )}
 
-      <label className="field name-field">
+      <label className="field name-field" data-tour="home-name">
         <span>Seu apelido</span>
         <span className="name-input">
           <Avatar name={draft || '?'} size={36} />
@@ -141,7 +151,7 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
         </span>
       </label>
 
-      <div className="actions">
+      <div className="actions" data-tour="home-actions">
         <div className="action-row">
           <button className="primary" disabled={busy} onClick={() => void create()}>
             {busy ? 'Criando...' : 'Criar sala'}
@@ -172,7 +182,7 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
       )}
 
       {recents.length > 0 && (
-        <section className="recents">
+        <section className="recents" data-tour="home-recents">
           <h2>Salas recentes</h2>
           <ul>
             {recents.map((r) => (
@@ -201,7 +211,10 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
 
       <footer className="lobby-foot">
         Funciona melhor no Chrome ou no Edge. Para enviar o som, compartilhe a tela inteira e marque
-        &quot;Compartilhar áudio do sistema&quot;.
+        &quot;Compartilhar áudio do sistema&quot;.{' '}
+        <button type="button" className="link" onClick={() => startTour('home', HOME_STEPS)}>
+          Ver o tour
+        </button>
       </footer>
     </main>
   )

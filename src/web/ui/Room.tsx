@@ -15,6 +15,8 @@ import { Dropdown, type DropdownOption } from './Dropdown'
 import { Icon, type IconName } from './icons'
 import { RemoteAudio, toggleFullscreen, VideoTile, VolumeSlider } from './media'
 import { useToast } from './Toasts'
+import { startTour, stopTour, tourActive } from './tour'
+import { ROOM_STEPS, shouldShowTour } from './tourLogic'
 
 const ROUTE_LABEL: Record<Route, string> = {
   conectando: 'conectando',
@@ -188,6 +190,32 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
     if (askingPeer && soundsOn) playKnock()
   }, [askingPeer, soundsOn])
 
+  // tour guiado: abre a barra lateral só durante o tour (sem gravar na pref) e restaura no fim
+  const tourTimer = useRef<number | undefined>(undefined)
+  const runTour = useCallback(() => {
+    setSidebarOpen(true)
+    window.clearTimeout(tourTimer.current)
+    tourTimer.current = window.setTimeout(
+      () => startTour('room', ROOM_STEPS, () => setSidebarOpen(getPrefs().sidebarOpen)),
+      getPrefs().sidebarOpen ? 0 : 320
+    )
+  }, [])
+  useEffect(
+    () => () => {
+      window.clearTimeout(tourTimer.current)
+      stopTour(true)
+    },
+    []
+  )
+  // começa sozinho na primeira vez; espera modais (pedido de entrada ou de controle) fecharem
+  const tourBusy = state.requests.length > 0 || control.controlled.phase === 'asking'
+  useEffect(() => {
+    if (tourBusy && tourActive()) stopTour(true)
+    if (state.status !== 'na-sala' || tourBusy || !shouldShowTour(getPrefs().tourDone)) return
+    const t = window.setTimeout(runTour, 800)
+    return () => window.clearTimeout(t)
+  }, [state.status, tourBusy, runTour])
+
   // erro do microfone vira aviso
   useEffect(() => {
     if (state.micError) toast(state.micError, 'error', 8000)
@@ -283,6 +311,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
       const t = e.target as HTMLElement | null
       if (t && (/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t.closest('[role="listbox"]'))) return
       if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (tourActive()) return
       if (controlling) return // as teclas vão para o PC controlado
       const k = e.key.toLowerCase()
       if (k === 'm') {
@@ -349,22 +378,27 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
         <div className="sidebar-inner">
           <div className="sidebar-head">
             <Brand />
-            <button
-              className="icon-btn"
-              onClick={toggleSidebar}
-              data-tip="Recolher barra lateral"
-              data-tip-pos="left"
-              aria-label="Recolher barra lateral"
-            >
-              <Icon name="panel" size={20} />
-            </button>
+            <div className="head-actions">
+              <button className="icon-btn" onClick={runTour} data-tip="Ver o tour" data-tip-pos="bottom" aria-label="Ver o tour">
+                <Icon name="help" size={20} />
+              </button>
+              <button
+                className="icon-btn"
+                onClick={toggleSidebar}
+                data-tip="Recolher barra lateral"
+                data-tip-pos="left"
+                aria-label="Recolher barra lateral"
+              >
+                <Icon name="panel" size={20} />
+              </button>
+            </div>
           </div>
 
-          <button className="wide" onClick={() => void copy()}>
+          <button className="wide" data-tour="copy-link" onClick={() => void copy()}>
             <Icon name="link" size={16} /> Copiar link da sala
           </button>
 
-          <section>
+          <section data-tour="people">
             <h3>Na sala ({state.peers.length + 1})</h3>
             <ul className="people">
               <PersonRow
@@ -424,7 +458,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
         )}
 
         {shown.length === 0 ? (
-          <div className="empty">
+          <div className="empty" data-tour="stage">
             <div className="scene" aria-hidden="true">
               <Jan pose="wait" size={144} />
               <TvOff />
@@ -440,6 +474,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
           </div>
         ) : (
           <div
+            data-tour="stage"
             className={`grid ${focusedTile ? 'has-focus' : `n${Math.min(shown.length, 4)}`}`}
             style={{ '--thumbs': Math.max(thumbs, 1) } as CSSProperties}
           >
@@ -482,6 +517,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
 
         <footer className="controls">
           <button
+            data-tour="mic"
             className={`ctl mic ${micMuted ? 'is-muted' : 'is-live'}`}
             style={{ '--ring': mySpeaking ? 2 + Math.min(1, myLevel * 1.6) * 4 : 0 } as CSSProperties}
             disabled={micDisabled}
@@ -494,13 +530,13 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
           </button>
 
           {state.screen ? (
-            <button className="danger" onClick={stopShare}>
+            <button className="danger" data-tour="share" onClick={stopShare}>
               <Icon name="stop" size={20} />
               <span className="lbl">Parar</span>
             </button>
           ) : (
             canShare && (
-              <button className="primary" onClick={() => void share()}>
+              <button className="primary" data-tour="share" onClick={() => void share()}>
                 <Icon name="screen" size={20} />
                 <span className="lbl">Compartilhar tela</span>
               </button>
@@ -510,6 +546,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
           {canShare && (
             <Dropdown
               placement="up"
+              tour="quality"
               icon="sliders"
               ariaLabel="Qualidade"
               value={state.preset.id}
@@ -536,6 +573,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
           )}
 
           <button
+            data-tour="sounds"
             className={`icon-btn ${soundsOn ? 'on' : ''}`}
             onClick={toggleSounds}
             data-tip={soundsOn ? 'Desligar sons de aviso' : 'Ligar sons de aviso'}

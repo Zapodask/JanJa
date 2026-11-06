@@ -72,6 +72,10 @@ export interface Prefs {
   showStats: boolean
   /** campainha de pedido de entrada e som de tela compartilhada */
   sounds: boolean
+  /** versão do tour da sala já vista (0 = nunca) */
+  tourDone: number
+  /** versão do tour da Home já vista */
+  homeTourDone: number
 }
 
 const DEFAULT_PREFS: Prefs = {
@@ -82,7 +86,9 @@ const DEFAULT_PREFS: Prefs = {
   volumes: {},
   sidebarOpen: true,
   showStats: true,
-  sounds: true
+  sounds: true,
+  tourDone: 0,
+  homeTourDone: 0
 }
 
 // compatibilidade com a chave antiga de aprovação
