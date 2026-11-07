@@ -7,7 +7,8 @@ import { PRESETS, bitrateFor, presetById } from '../rtc/quality'
 import { getPrefs, rememberRoom, setPrefs, volumeKey } from '../storage'
 import { useAudioBlocked } from '../playback'
 import { playDoorbell, playKnock, playShareOn, setSoundSink } from '../sounds'
-import { canShareScreen, useRoom } from '../useRoom'
+import { canShareScreen, canUseCamera, useRoom } from '../useRoom'
+import { CamStrip, type CamItem } from './Cams'
 import type { Rect, SceneLayout } from '../game/contract'
 import { GameAudioDriver } from '../game/GameAudioDriver'
 import { sameRects, shortcutAction, shouldInvite } from '../game/helpers'
@@ -120,7 +121,7 @@ interface Props {
 }
 
 export function Room({ roomId, name, hostKey, onLeave }: Props) {
-  const { state, toggleMic, startShare, stopShare, setPreset, answerRequest, reconnect, game, gameApi, gameError } = useRoom(
+  const { state, toggleMic, startShare, stopShare, startCamera, stopCamera, setPreset, answerRequest, reconnect, game, gameApi, gameError } = useRoom(
     roomId,
     name,
     hostKey
@@ -139,6 +140,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   const outputs = useOutputDevices()
   const link = roomUrl(location.origin, roomId)
   const canShare = canShareScreen()
+  const canCam = canUseCamera()
 
   const micMuted = state.me.micMuted
   const micActive = !micMuted && !!state.micStream
@@ -282,6 +284,22 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
     }
   }, [startShare, state.preset, toast])
 
+  const toggleCamera = useCallback(async () => {
+    if (state.camera) return stopCamera()
+    if (state.cameraPending) return
+    const err = await startCamera()
+    if (err) toast(err, 'error', 8000)
+  }, [state.camera, state.cameraPending, startCamera, stopCamera, toast])
+
+  // webcams: a sua primeiro, depois as dos outros (só quando a imagem chegou)
+  const camItems = useMemo(() => {
+    const list: CamItem[] = []
+    if (state.camera) list.push({ id: 'me', name, stream: state.camera, mic: state.micStream, micMuted: state.me.micMuted || !state.micStream, local: true })
+    for (const p of state.peers)
+      if (p.cam && p.cam.getVideoTracks().length > 0) list.push({ id: p.id, name: p.name, stream: p.cam, mic: p.mic, micMuted: p.state.micMuted })
+    return list
+  }, [state.camera, state.micStream, state.me.micMuted, state.peers, name])
+
   const tiles = useMemo(() => {
     const list: { id: string; label: string; stream: MediaStream; local?: boolean }[] = []
     if (state.screen) list.push({ id: 'me', label: `${name} (você)`, stream: state.screen, local: true })
@@ -409,13 +427,17 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   const effectiveSink = outputs.some((d) => d.deviceId === sinkId) ? sinkId : 'default'
   useEffect(() => setSoundSink(effectiveSink), [effectiveSink])
 
-  // atalhos: M = mic, F = tela cheia, Esc = sair do foco
+  // atalhos: M = mic, C = câmera, F = tela cheia, Esc = sair do foco
   const tilesRef = useRef(tiles)
   tilesRef.current = tiles
   const tableModeRef = useRef(tableMode)
   tableModeRef.current = tableMode
   const panelOpenRef = useRef(panelOpen)
   panelOpenRef.current = panelOpen
+  const toggleCameraRef = useRef(toggleCamera)
+  toggleCameraRef.current = toggleCamera
+  const canCamRef = useRef(canCam)
+  canCamRef.current = canCam
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
@@ -428,6 +450,9 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
       if (k === 'm') {
         e.preventDefault()
         void toggleMic()
+      } else if (k === 'c' && canCamRef.current) {
+        e.preventDefault()
+        void toggleCameraRef.current()
       } else if (k === 'f') {
         // F age na tela selecionada (teclado), na que está sob o mouse ou na única que houver
         const active = document.activeElement?.closest<HTMLElement>('[data-tile-id]')
@@ -634,7 +659,8 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
                 </Suspense>
               </div>
             )}
-            {!tableMode && shown.length === 0 && (
+            {camItems.length > 0 && <CamStrip items={camItems} mode={tableMode ? 'flutuante' : shown.length === 0 ? 'palco' : 'faixa'} />}
+            {!tableMode && shown.length === 0 && camItems.length === 0 && (
               <div className="empty" data-tour="stage">
                 <div className="scene" aria-hidden="true">
                   <Jan pose="wait" size={144} />
@@ -739,6 +765,20 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
             <span className="lbl">{micDisabled ? 'Sem mic' : micMuted ? 'Ligar mic' : 'Mutar'}</span>
           </button>
 
+          {canCam && (
+            <button
+              data-tour="camera"
+              className={`ctl cam ${state.camera ? 'is-live' : ''}`}
+              onClick={() => void toggleCamera()}
+              disabled={state.cameraPending}
+              data-tip={state.camera ? 'Desligar câmera (C)' : 'Ligar câmera (C)'}
+              aria-pressed={!!state.camera}
+            >
+              <Icon name={state.camera ? 'camera' : 'cameraOff'} size={20} />
+              <span className="lbl">{state.cameraPending ? 'Abrindo…' : 'Câmera'}</span>
+            </button>
+          )}
+
           {state.screen ? (
             <button className="danger" data-tour="share" onClick={stopShare}>
               <Icon name="stop" size={20} />
@@ -778,6 +818,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
               value={effectiveSink}
               options={outputOptions}
               onChange={changeSink}
+              tip="Saída de áudio"
               buttonText="Saída de áudio"
             />
           )}

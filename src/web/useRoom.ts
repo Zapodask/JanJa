@@ -30,6 +30,10 @@ export interface RoomState {
   /** navegador tem getUserMedia e a permissão não foi negada nesta sessão */
   micAvailable: boolean
   requests: JoinRequest[]
+  /** a própria webcam, enquanto ligada */
+  camera?: MediaStream
+  /** a câmera está sendo aberta (permissão do navegador) */
+  cameraPending?: boolean
   /** a malha WebRTC da sala atual (o controle remoto usa o canal "control" dela) */
   manager?: PeerManager
 }
@@ -49,6 +53,28 @@ function micErrorMessage(err: unknown): string {
   if (name === 'NotAllowedError' || name === 'SecurityError')
     return 'O navegador bloqueou o microfone. Libere no cadeado da barra de endereço.'
   return 'Não foi possível acessar o microfone.'
+}
+
+/** Pedido da webcam: 360p a até 24 fps basta para rosto e economiza banda na malha. */
+const CAM_CONSTRAINTS: MediaTrackConstraints = {
+  width: { ideal: 640 },
+  height: { ideal: 360 },
+  frameRate: { ideal: 24, max: 30 },
+  facingMode: 'user'
+}
+
+/** O navegador tem câmera aqui? (precisa de HTTPS) */
+export const canUseCamera = (): boolean => window.isSecureContext && hasGetUserMedia()
+
+/** Traduz o erro da câmera numa mensagem para a pessoa. */
+export function cameraErrorMessage(err: unknown): string {
+  const name = err instanceof DOMException ? err.name : ''
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'Nenhuma câmera encontrada neste dispositivo.'
+  if (name === 'NotAllowedError' || name === 'SecurityError')
+    return 'O navegador bloqueou a câmera. Libere no cadeado da barra de endereço.'
+  if (name === 'NotReadableError' || name === 'AbortError')
+    return 'A câmera está ocupada por outro programa (Zoom, Teams, OBS...). Feche e tente de novo.'
+  return 'Não foi possível abrir a câmera.'
 }
 
 /** O navegador consegue compartilhar tela aqui? (celular e páginas sem HTTPS não conseguem) */
@@ -94,6 +120,7 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
   const micRef = useRef<MediaStream>(undefined)
   const meRef = useRef<PeerState>({ ...INITIAL_STATE, micMuted: getPrefs().micMuted })
   const micPendingRef = useRef<Promise<MediaStream | undefined>>(undefined)
+  const camRef = useRef<MediaStream>(undefined)
   const mountedRef = useRef(false)
   const [attempt, setAttempt] = useState(0)
 
@@ -149,6 +176,8 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
       mountedRef.current = false
       micRef.current?.getTracks().forEach((t) => t.stop())
       micRef.current = undefined
+      camRef.current?.getTracks().forEach((t) => t.stop())
+      camRef.current = undefined
     }
   }, [])
 
@@ -179,6 +208,9 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
         managerRef.current = manager
         manager.onChange(() => !disposed && patch({ peers: manager.views() }))
         manager.setMic(micRef.current)
+        // reconexão com a câmera ligada: ela continua indo para todo mundo
+        if (camRef.current?.getVideoTracks().some((t) => t.readyState === 'live')) manager.startCamera(camRef.current)
+        else if (meRef.current.camStreamId) meRef.current = { ...meRef.current, camStreamId: undefined }
 
         // quem entra inicia a conexão com todos que já estão na sala
         // (antes de assinar as mensagens, para os sinais guardados acharem o peer)
@@ -262,6 +294,44 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
     setPrefs({ micMuted: false })
   }, [acquireMic, publishState])
 
+  const stopCamera = useCallback(() => {
+    const cam = camRef.current
+    camRef.current = undefined
+    managerRef.current?.stopCamera()
+    cam?.getTracks().forEach((t) => t.stop())
+    publishState({ camStreamId: undefined })
+    patch({ camera: undefined, cameraPending: false })
+  }, [patch, publishState])
+
+  /** Liga a webcam. Devolve a mensagem de erro (para o aviso) ou undefined se ligou. */
+  const startCamera = useCallback(async (): Promise<string | undefined> => {
+    if (camRef.current) return undefined
+    patch({ cameraPending: true })
+    try {
+      if (!canUseCamera()) throw new DOMException('sem câmera', 'NotFoundError')
+      const stream = await navigator.mediaDevices.getUserMedia({ video: CAM_CONSTRAINTS, audio: false })
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((t) => t.stop())
+        return undefined
+      }
+      const video = stream.getVideoTracks()[0]
+      if (video) {
+        video.contentHint = 'motion'
+        // câmera desconectada ou tomada por outro app
+        video.addEventListener('ended', () => camRef.current === stream && stopCamera(), { once: true })
+      }
+      camRef.current = stream
+      // anuncia antes da trilha chegar, para o receptor saber que esse vídeo é câmera e não tela
+      publishState({ camStreamId: stream.id })
+      managerRef.current?.startCamera(stream)
+      patch({ camera: stream, cameraPending: false })
+      return undefined
+    } catch (err) {
+      patch({ cameraPending: false })
+      return cameraErrorMessage(err)
+    }
+  }, [patch, publishState, stopCamera])
+
   const stopShare = useCallback(() => {
     managerRef.current?.stopScreen()
     publishState({ sharing: false, screenStreamId: undefined })
@@ -316,5 +386,5 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
     [send]
   )
 
-  return { state, toggleMic, startShare, stopShare, setPreset, answerRequest, reconnect, game, gameApi, gameError }
+  return { state, toggleMic, startShare, stopShare, startCamera, stopCamera, setPreset, answerRequest, reconnect, game, gameApi, gameError }
 }

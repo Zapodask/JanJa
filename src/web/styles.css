@@ -284,11 +284,12 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border: 0; bo
 
 /* a barra encolhe os rótulos secundários antes de quebrar linha */
 @container (max-width: 1230px) {
-  .controls .dd-btn small, .controls .copy .lbl { display: none; }
+  .controls .dd-btn small, .controls .copy .lbl, .controls .dd:not([data-tour='quality']) .lbl { display: none; }
   .controls .copy { padding: 0 12px; }
+  .controls .dd:not([data-tour='quality']) .dd-btn { padding: 0 8px 0 12px; }
 }
 @container (max-width: 1040px) {
-  .controls .dd .lbl, .controls .games .lbl { display: none; }
+  .controls .dd .lbl, .controls .games .lbl, .controls .cam .lbl { display: none; }
 }
 @media (max-width: 900px) {
   .sidebar { position: absolute; z-index: 30; inset: 0 auto 0 0; }
@@ -490,4 +491,41 @@ button.link:hover:not(:disabled) { --fg: var(--paper); }
 }
 @media (prefers-reduced-motion: reduce) {
   .hud-actions .act, .game-invite, .hands-table { animation: none; }
+}
+
+/* ---------- webcams ---------- */
+.cams { display: flex; gap: 12px; }
+.cam-tile { position: relative; margin: 0; aspect-ratio: 16 / 9; background: #000; border: 3px solid var(--rug); border-radius: var(--r-panel); overflow: hidden; animation: tv-on 0.4s cubic-bezier(0.3, 1.25, 0.5, 1) both; transition: border-color 0.12s, box-shadow 0.12s; }
+.cam-tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+.cam-tile.local video { transform: scaleX(-1); }
+.cam-tile.speaking { border-color: var(--on); box-shadow: 0 0 0 2px rgba(111, 212, 155, 0.35); }
+.cam-tile figcaption { position: absolute; left: 6px; bottom: 6px; display: flex; align-items: center; gap: 4px; max-width: calc(100% - 12px); padding: 1px 8px; border-radius: var(--r-ctl); background: rgba(34, 28, 25, 0.85); font-size: 13px; font-weight: 600; line-height: 20px; }
+.cam-tile figcaption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cam-tile figcaption svg { color: var(--off); flex: none; }
+
+/* ninguém compartilha tela: as câmeras viram o palco */
+.cams-palco { flex: 1; min-height: 0; flex-wrap: wrap; align-content: center; justify-content: center; padding: 16px; }
+.cams-palco .cam-tile { flex: 0 1 auto; width: min(100%, 720px); max-height: 100%; }
+.cams-palco.n2 .cam-tile { width: min(calc(50% - 6px), 640px); }
+.cams-palco.n3 .cam-tile, .cams-palco.n4 .cam-tile { width: min(calc(50% - 6px), 520px); }
+.cams-palco.n5 .cam-tile, .cams-palco.n6 .cam-tile { width: min(calc(33.333% - 8px), 420px); }
+
+/* com telas: uma faixa de câmeras acima delas */
+.cams-faixa { flex: none; padding: 12px 16px 0; overflow-x: auto; scrollbar-width: thin; }
+.cams-faixa .cam-tile { flex: none; height: clamp(88px, 14vh, 140px); }
+
+/* na mesa: no canto de cima, por cima da parede */
+.cams-flutuante { position: absolute; top: 8px; right: 8px; z-index: 6; flex-direction: column; gap: 6px; max-height: calc(100% - 16px); overflow-y: auto; scrollbar-width: none; pointer-events: none; }
+.cams-flutuante .cam-tile { flex: none; width: clamp(120px, 13vw, 200px); border-width: 2px; pointer-events: auto; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); }
+.cams-flutuante .cam-tile figcaption { font-size: 12px; }
+
+.ctl.cam.is-live { --fg: var(--on); }
+
+@media (max-width: 700px) {
+  .cams-palco .cam-tile, .cams-palco.n2 .cam-tile { width: 100%; }
+  .cams-palco.n3 .cam-tile, .cams-palco.n4 .cam-tile, .cams-palco.n5 .cam-tile, .cams-palco.n6 .cam-tile { width: calc(50% - 6px); }
+  .cams-flutuante .cam-tile { width: 96px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cam-tile { animation: none; }
 }

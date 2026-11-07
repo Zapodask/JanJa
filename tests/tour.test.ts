@@ -30,7 +30,7 @@ describe('tour: filtragem dos passos', () => {
     expect(out).toHaveLength(2)
   })
   it('o tour da sala tem os 11 passos do plano', () => {
-    expect(ROOM_STEPS).toHaveLength(11)
+    expect(ROOM_STEPS).toHaveLength(12)
   })
 })
 

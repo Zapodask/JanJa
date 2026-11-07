@@ -21,6 +21,8 @@ export interface PeerView {
   inKbps?: number
   screen?: MediaStream
   mic?: MediaStream
+  /** webcam (só vídeo; a voz vem pelo mic) */
+  cam?: MediaStream
 }
 
 interface Peer {
@@ -53,6 +55,7 @@ interface Peer {
 }
 
 const ICE_WATCHDOG_MS = 12_000
+const CAM_BITRATE = 450_000
 
 /**
  * Mesh WebRTC: um RTCPeerConnection por peer remoto, com "perfect negotiation"
@@ -66,6 +69,7 @@ export class PeerManager {
   private readonly controlLostListeners = new Set<(peerId: string) => void>()
   private micStream?: MediaStream
   private screenStream?: MediaStream
+  private camStream?: MediaStream
   private preset?: QualityPreset
   private statsTimer: number
 
@@ -91,8 +95,10 @@ export class PeerManager {
   views(): PeerView[] {
     return [...this.peers.values()].map((p) => {
       const streams = [...p.streams.values()].filter((s) => s.getTracks().length > 0)
+      const camId = p.state.camStreamId
+      const isCam = (s: MediaStream): boolean => !!camId && s.id === camId
       const isScreen = (s: MediaStream): boolean =>
-        s.id === p.state.screenStreamId || s.getVideoTracks().length > 0
+        s.id === p.state.screenStreamId || (!isCam(s) && s.getVideoTracks().length > 0)
       return {
         id: p.id,
         name: p.name,
@@ -102,7 +108,8 @@ export class PeerManager {
         rttMs: p.rttMs,
         inKbps: p.inKbps,
         screen: p.state.sharing ? streams.find(isScreen) : undefined,
-        mic: streams.find((s) => !isScreen(s))
+        mic: streams.find((s) => !isScreen(s) && !isCam(s)),
+        cam: camId ? streams.find(isCam) : undefined
       }
     })
   }
@@ -311,6 +318,23 @@ export class PeerManager {
     for (const t of stream.getTracks()) t.stop()
   }
 
+  /** Webcam: trilha de vídeo própria, separada da tela (as duas podem ir juntas). */
+  startCamera(stream: MediaStream): void {
+    if (this.camStream === stream) return
+    this.stopCamera(false)
+    this.camStream = stream
+    for (const peer of this.peers.values()) if (peer.ready) this.addStreamTo(peer, stream)
+  }
+
+  /** Tira a câmera dos peers; `release` também desliga o dispositivo. */
+  stopCamera(release = true): void {
+    const stream = this.camStream
+    if (!stream) return
+    this.camStream = undefined
+    for (const peer of this.peers.values()) this.removeStreamFrom(peer, stream)
+    if (release) for (const t of stream.getTracks()) t.stop()
+  }
+
   setPreset(preset: QualityPreset): void {
     this.preset = preset
     const video = this.screenStream?.getVideoTracks()[0]
@@ -325,6 +349,8 @@ export class PeerManager {
   dispose(): void {
     window.clearInterval(this.statsTimer)
     this.stopScreen()
+    // a câmera é do useRoom (sobrevive a reconexões): só sai dos peers
+    this.stopCamera(false)
     for (const id of this.peers.keys()) this.emitControlLost(id)
     for (const peer of this.peers.values()) peer.pc.close()
     this.peers.clear()
@@ -342,6 +368,7 @@ export class PeerManager {
   private addActiveStreams(peer: Peer): void {
     if (this.micStream) this.addStreamTo(peer, this.micStream)
     if (this.screenStream) this.addStreamTo(peer, this.screenStream)
+    if (this.camStream) this.addStreamTo(peer, this.camStream)
   }
 
   private addStreamTo(peer: Peer, stream: MediaStream): void {
@@ -349,7 +376,8 @@ export class PeerManager {
       if (peer.senders.has(track.id)) continue
       const sender = peer.pc.addTrack(track, stream)
       peer.senders.set(track.id, sender)
-      if (track.kind === 'video') preferVideoCodecs(peer.pc, sender, this.preset?.hint ?? 'motion')
+      // a câmera fica com os codecs padrão do navegador (VP8 dá conta de 360p com pouca CPU)
+      if (track.kind === 'video' && stream !== this.camStream) preferVideoCodecs(peer.pc, sender, this.preset?.hint ?? 'motion')
     }
   }
 
@@ -367,6 +395,7 @@ export class PeerManager {
   }
 
   private async applyBitrate(peer: Peer): Promise<void> {
+    await this.applyCamBitrate(peer)
     const preset = this.preset
     const video = this.screenStream?.getVideoTracks()[0]
     if (!preset || !video) return
@@ -384,6 +413,23 @@ export class PeerManager {
       await sender.setParameters(params)
     } catch (err) {
       console.warn('[rtc] setParameters', err)
+    }
+  }
+
+  /** Câmera leve: ~450 kbps e até 24 fps por pessoa, para não disputar banda com a tela. */
+  private async applyCamBitrate(peer: Peer): Promise<void> {
+    const video = this.camStream?.getVideoTracks()[0]
+    if (!video) return
+    const sender = peer.senders.get(video.id)
+    if (!sender) return
+    const params = sender.getParameters()
+    if (!params.encodings || params.encodings.length === 0) return
+    params.encodings[0].maxBitrate = CAM_BITRATE
+    params.encodings[0].maxFramerate = 24
+    try {
+      await sender.setParameters(params)
+    } catch (err) {
+      console.warn('[rtc] setParameters câmera', err)
     }
   }
 

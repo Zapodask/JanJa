@@ -58,6 +58,13 @@ export const ROOM_STEPS: TourStep[] = [
   },
   { id: 'mic', selector: t('mic'), side: 'top', title: 'Microfone', text: 'Ele começa desligado. Ligue aqui ou aperte M.' },
   {
+    id: 'camera',
+    selector: t('camera'),
+    side: 'top',
+    title: 'Câmera',
+    text: 'Liga a sua webcam para a sala. Ela aparece junto das telas e também no canto da mesa de poker. Atalho: C.'
+  },
+  {
     id: 'stage',
     selector: t('stage'),
     side: 'top',

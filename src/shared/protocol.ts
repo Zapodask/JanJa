@@ -22,7 +22,9 @@ export const PeerStateSchema = z.object({
   sharing: z.boolean(),
   micMuted: z.boolean(),
   /** id do MediaStream da tela, para o receptor separar o áudio da tela do microfone */
-  screenStreamId: z.string().max(128).optional()
+  screenStreamId: z.string().max(128).optional(),
+  /** id do MediaStream da webcam (presente = câmera ligada) */
+  camStreamId: z.string().max(128).optional()
 })
 export type PeerState = z.infer<typeof PeerStateSchema>
 
