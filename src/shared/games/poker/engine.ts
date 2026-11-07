@@ -4,7 +4,7 @@
  * contém o baralho e as cartas fechadas, por isso NUNCA vai para clientes: use `view`.
  */
 import { fullDeck } from './cards'
-import { bestHand, dePessoa, drawHints, handNameWithArticle, toHandInfo } from './describe'
+import { bestHand, dePessoa, drawHints, handNameWithArticle, isOnTable, tieBreak, toHandInfo } from './describe'
 import { evaluate, evaluate3, type Evaluated } from './evaluate'
 import { shuffle, type GameCtx, type GameError, type PlayerRef, type Step } from '../types'
 import {
@@ -390,12 +390,22 @@ function showdown(st: PokerState, ctx: GameCtx, ev: Ev): void {
       const rest = elig.filter((i) => !winners.includes(i))
       let runner = rest[0]
       for (const i of rest) if ((evs.get(i) as Evaluated).value > (evs.get(runner) as Evaluated).value) runner = i
-      sentences.push(
-        `${names[0]} ganhou com ${toHandInfo(wEv).name} (bateu ${handNameWithArticle(evs.get(runner) as Evaluated)} ${dePessoa(st.players[runner].name)})`
-      )
+      const lEv = evs.get(runner) as Evaluated
+      const rName = st.players[runner].name
+      const tb = isTres(st) ? null : tieBreak(wEv, lEv)
+      if (tb) {
+        // mesmo nome de mão (ex.: par que está na mesa): explica o desempate em vez de "Par de 8 bateu Par de 8"
+        const shared = isOnTable(wEv, st.players[winners[0]].hole) && isOnTable(lEv, st.players[runner].hole)
+        sentences.push(
+          `${names[0]} ganhou no desempate: ${names[0]} e ${rName} tinham ${toHandInfo(wEv).name}${shared ? ', que está na mesa' : ''}, e ${tb.rule} (${tb.win} contra ${tb.lose})`
+        )
+      } else {
+        sentences.push(`${names[0]} ganhou com ${toHandInfo(wEv).name} (bateu ${handNameWithArticle(lEv)} ${dePessoa(rName)})`)
+      }
     } else {
       const lista = names.length === 2 ? names.join(' e ') : `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`
-      sentences.push(`${lista} dividiram o pote com ${toHandInfo(wEv).name}`)
+      const boardOnly = !isTres(st) && st.board.length === 5 && evaluate(st.board).value === wEv.value
+      sentences.push(`${lista} dividiram o pote com ${toHandInfo(wEv).name}${boardOnly ? ' (a melhor mão é a da mesa, vale para todos)' : ''}`)
     }
   })
   st.showdown = {

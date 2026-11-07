@@ -1,7 +1,7 @@
 // O primeiro import do Pixi precisa ser este (o CSP do site proíbe eval).
 import 'pixi.js/unsafe-eval'
 import '@fontsource-variable/pixelify-sans/wght.css'
-import { Application, Assets, Container, Graphics, Sprite, Texture, TextureSource } from 'pixi.js'
+import { Application, Assets, CanvasSource, Container, Graphics, Sprite, Texture, TextureSource } from 'pixi.js'
 import type { Spritesheet } from 'pixi.js'
 import gsap from 'gsap'
 import { PALETTE } from '../art/palette'
@@ -16,7 +16,6 @@ import { composeRoom, composeVignette } from './room'
 import { cardSprite, chipPlan, computeScene, computeViewport, pileSprite, seatPositions, stackPlan, toCss, tvCssRects } from './layout'
 import type { Pile, SceneGeom, SeatSpot, Viewport } from './layout'
 
-const FONT_CSS = '400 10px "Pixelify Sans Variable", monospace'
 const WALL_COLOR = '#221C19'
 const DEFAULT_COLORS = ['#FFC94A', '#FF7A6B', '#6FD49B', '#7FB7E6', '#E8B48A', '#D9CCB8', '#C98E66', '#8A5A34']
 
@@ -43,37 +42,61 @@ export function rowsToCanvas(rows: Rows): HTMLCanvasElement {
 const ZERO = ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.']
 const DIGIT: Record<string, string[]> = { ...RANK_GLYPHS, '0': ZERO, '1': DIGIT_1 }
 
+/** Densidade do texto: o canvas renderiza a `TEXT_RES` pixels de tela por pixel da cena, só o texto usa esse detalhe. */
+let TEXT_RES = 1
+const LIVE_TEXT = new Set<PxText>()
+function fontCss(k: number): string {
+  return `500 ${10 * k}px "Pixelify Sans Variable", monospace`
+}
+
 /**
- * Texto pixel perfeito: letras em Pixelify Sans 10 px sem suavização (limiar de alfa), números na fonte 5x7,
- * contorno de 1 px. Branco + preto, então `tint` colore o miolo.
+ * Texto nítido: letras em Pixelify Sans a 10*k px sem suavização (limiar de alfa), números na fonte 5x7 ampliada k vezes,
+ * contorno escuro. Branco + preto, então `tint` colore o miolo. Mede-se em pixels da cena (textura com resolution k).
  */
-function renderPx(str: string): HTMLCanvasElement {
+function renderPx(str: string, k: number): HTMLCanvasElement {
   const probe = document.createElement('canvas').getContext('2d')!
-  probe.font = FONT_CSS
+  probe.font = fontCss(k)
   const runs = str.match(/\d+|\D+/g) ?? []
-  const widths = runs.map((r) => (/\d/.test(r[0]) ? r.length * 6 - 1 : Math.ceil(probe.measureText(r).width)))
-  const w = widths.reduce((a, b) => a + b, 0) + 4
-  const H = 15
+  const widths = runs.map((r) => (/\d/.test(r[0]) ? (r.length * 6 - 1) * k : Math.ceil(probe.measureText(r).width)))
+  const pad = 2 * k
+  const w = widths.reduce((a, b) => a + b, 0) + runs.length * k + 2 * pad
+  const H = 15 * k
   const mask = new Uint8Array(w * H)
-  let xo = 2
-  runs.forEach((r, k) => {
+  let xo = pad
+  runs.forEach((r, ri) => {
     if (/\d/.test(r[0])) {
-      ;[...r].forEach((ch, i) => DIGIT[ch].forEach((line, y) => [...line].forEach((c, x) => c === '#' && (mask[(y + 2) * w + xo + i * 6 + x] = 1))))
+      ;[...r].forEach((ch, i) =>
+        DIGIT[ch].forEach((line, y) =>
+          [...line].forEach((c, x) => {
+            if (c !== '#') return
+            for (let a = 0; a < k; a++) for (let b = 0; b < k; b++) mask[((y + 3) * k + a) * w + xo + (i * 6 + x) * k + b] = 1
+          })
+        )
+      )
     } else {
       const a = document.createElement('canvas')
-      a.width = widths[k] + 2
+      a.width = widths[ri] + 2
       a.height = H
       const x = a.getContext('2d', { willReadFrequently: true })!
-      x.font = FONT_CSS
+      x.font = fontCss(k)
       x.fillStyle = '#fff'
       x.textBaseline = 'top'
-      x.fillText(r, 0, 1)
+      x.fillText(r, 0, Math.round(1.5 * k))
       const d = x.getImageData(0, 0, a.width, H)
       for (let j = 0; j < H; j++) for (let i = 0; i < a.width; i++) if (d.data[(j * a.width + i) * 4 + 3] > 127 && xo + i < w) mask[j * w + xo + i] = 1
     }
-    xo += widths[k] + (/\d/.test(r[0]) ? 1 : 0)
+    xo += widths[ri] + k
   })
-  const on = (i: number, j: number) => i >= 0 && j >= 0 && i < w && j < H && mask[j * w + i] === 1
+  const ol = k >= 3 ? 2 : 1
+  const near = (i: number, j: number) => {
+    for (let b = -ol; b <= ol; b++)
+      for (let a = -ol; a <= ol; a++) {
+        const x = i + a
+        const y = j + b
+        if (x >= 0 && y >= 0 && x < w && y < H && mask[y * w + x] === 1) return true
+      }
+    return false
+  }
   const out = document.createElement('canvas')
   out.width = w
   out.height = H
@@ -82,19 +105,36 @@ function renderPx(str: string): HTMLCanvasElement {
   for (let j = 0; j < H; j++)
     for (let i = 0; i < w; i++) {
       const o = (j * w + i) * 4
-      if (on(i, j)) {
+      if (mask[j * w + i] === 1) {
         img.data[o] = img.data[o + 1] = img.data[o + 2] = 255
         img.data[o + 3] = 255
-      } else if (on(i - 1, j) || on(i + 1, j) || on(i, j - 1) || on(i, j + 1) || on(i - 1, j - 1) || on(i + 1, j + 1) || on(i - 1, j + 1) || on(i + 1, j - 1)) img.data[o + 3] = 255
+      } else if (near(i, j)) {
+        img.data[o] = 0x14
+        img.data[o + 1] = 0x0f
+        img.data[o + 2] = 0x0c
+        img.data[o + 3] = 255
+      }
     }
   ox.putImageData(img, 0, 0)
   return out
+}
+
+function textTexture(v: string): Texture {
+  return new Texture({ source: new CanvasSource({ resource: renderPx(v, TEXT_RES), resolution: TEXT_RES, scaleMode: 'nearest' }) })
+}
+
+/** Muda a densidade do texto e redesenha todos os textos vivos. */
+function setTextRes(k: number) {
+  if (k === TEXT_RES) return
+  TEXT_RES = k
+  for (const t of LIVE_TEXT) t.redraw()
 }
 
 class PxText extends Sprite {
   private t = ''
   constructor(text: string) {
     super(Texture.EMPTY)
+    LIVE_TEXT.add(this)
     this.text = text
   }
   get text() {
@@ -103,11 +143,15 @@ class PxText extends Sprite {
   set text(v: string) {
     if (v === this.t && (v === '' || this.texture !== Texture.EMPTY)) return
     this.t = v
+    this.redraw()
+  }
+  redraw() {
     const old = this.texture
-    this.texture = v ? Texture.from(renderPx(v)) : Texture.EMPTY
+    this.texture = this.t ? textTexture(this.t) : Texture.EMPTY
     if (old !== Texture.EMPTY) old.destroy(true)
   }
   override destroy(o?: Parameters<Sprite['destroy']>[0]) {
+    LIVE_TEXT.delete(this)
     const t = this.texture
     super.destroy(o)
     if (t !== Texture.EMPTY) t.destroy(true)
@@ -124,6 +168,7 @@ interface SeatNode {
   fill: Graphics
   initial: PxText
   ring: Sprite
+  plate: Graphics
   name: PxText
   stackT: PxText
   tag: PxText
@@ -276,7 +321,7 @@ export class SceneEngine {
     // o CSP do site não permite worker de blob: decodifica as imagens na thread principal (é uma imagem só)
     Assets.setPreferences({ preferWorkers: false })
     this.sheet = await Assets.load<Spritesheet>('/game/sprites.json')
-    await document.fonts.load('10px "Pixelify Sans Variable"').catch(() => undefined)
+    await document.fonts.load('500 20px "Pixelify Sans Variable"').catch(() => undefined)
     if (this.dead) return
     this.build()
     this.ready = true
@@ -382,7 +427,11 @@ export class SceneEngine {
   private layout() {
     const g = this.geom
     const vp = this.vp
-    this.app.renderer.resize(vp.w, vp.h)
+    // texto em alta: o canvas tem k pixels por pixel da cena (k divide a escala, então a ampliação continua inteira)
+    const sc = Math.max(1, Math.floor(vp.scale))
+    const k = [4, 3, 2, 1].find((d) => sc % d === 0) ?? 1
+    this.app.renderer.resize(vp.w, vp.h, vp.scale >= 1 ? k : 1)
+    setTextRes(vp.scale >= 1 ? k : 1)
     const cv = this.app.canvas
     cv.style.width = `${vp.cssW}px`
     cv.style.height = `${vp.cssH}px`
@@ -511,17 +560,18 @@ export class SceneEngine {
     initial.anchor.set(0.5, 0.5)
     const ring = this.spr('timer_ring_0')
     ring.visible = false
+    const plate = new Graphics()
     const name = this.text('', 0xf3ebdd)
     const stackT = this.text('', 0xffc94a)
     const tag = this.text('', 0xff7a6b)
     const btns = new Container()
     const bet = new Container()
-    root.addChild(fill, frame, initial, ring, name, stackT, tag)
+    root.addChild(fill, frame, initial, ring, plate, name, stackT, tag)
     this.seatLayer.addChild(root)
     this.holeLayer.addChild(holeLayer)
     this.stackLayer.addChild(stackLayer)
     this.tableLayer.addChild(bet, btns)
-    return { pid, holes: [], holeLayer, root, stackLayer, frame, fill, initial, ring, name, stackT, tag, btns, bet, betKey: '', stackKey: '', spot: { x: 0, y: 0, angle: 0, dx: 0, dy: -1, label: 'below' }, color: 0xffffff, seat: null }
+    return { pid, holes: [], holeLayer, root, stackLayer, frame, fill, initial, ring, plate, name, stackT, tag, btns, bet, betKey: '', stackKey: '', spot: { x: 0, y: 0, angle: 0, dx: 0, dy: -1, label: 'below' }, color: 0xffffff, seat: null }
   }
 
   private destroyNode(n: SeatNode) {
@@ -591,20 +641,21 @@ export class SceneEngine {
         n.name.anchor.set(0.5, 0)
         n.stackT.anchor.set(0.5, 0)
         n.tag.anchor.set(0.5, 0)
-        n.name.position.set(0, 13)
-        n.stackT.position.set(0, 24)
-        n.tag.position.set(0, 35)
+        n.name.position.set(0, 14)
+        n.stackT.position.set(0, 25)
+        n.tag.position.set(0, 36)
       } else {
         const right = side === 'right'
         n.name.anchor.set(right ? 0 : 1, 0)
         n.stackT.anchor.set(right ? 0 : 1, 0)
         n.tag.anchor.set(right ? 0 : 1, 0)
-        const x = right ? 16 : -16
-        const y0 = hasTag ? -17 : -11
+        const x = right ? 17 : -17
+        const y0 = hasTag ? -18 : -12
         n.name.position.set(x, y0)
         n.stackT.position.set(x, y0 + 11)
         n.tag.position.set(x, y0 + 22)
       }
+      this.drawPlate(n, isMe)
       // cartas do jogador
       const count = this.holeCount(s)
       if (!this.holeShown.has(s.playerId)) this.lastHole.set(s.playerId, count)
@@ -675,7 +726,8 @@ export class SceneEngine {
         if (lit) this.pulse.push({ s: c, baseY: this.geom.board[i].y, k: i })
       } else if (!vis) c.alpha = 1
     })
-    this.deck.visible = true
+    // no showdown as cartas viradas podem ocupar o canto do baralho
+    this.deck.visible = !view.showdown
     this.syncPot(view)
     this.syncLight(view)
     if (view.phase === 'fim' && view.ranking && !this.podiumHold && !this.podium) this.showPodium(view.ranking, false)
@@ -683,6 +735,32 @@ export class SceneEngine {
   }
 
   private flipping = new Set<number>()
+
+  /** Plaquinha escura atrás do nome e das fichas: o texto fica legível em cima do feltro, da madeira ou da parede. */
+  private drawPlate(n: SeatNode, me: boolean) {
+    const parts = [n.name, n.stackT, n.tag].filter((t) => t.visible && t.text !== '')
+    n.plate.clear()
+    if (!parts.length) return
+    let x0 = Infinity
+    let x1 = -Infinity
+    let y0 = Infinity
+    let y1 = -Infinity
+    for (const t of parts) {
+      const l = t.x - t.anchor.x * t.width
+      x0 = Math.min(x0, l + 1)
+      x1 = Math.max(x1, l + t.width - 1)
+      y0 = Math.min(y0, t.y + 1)
+      y1 = Math.max(y1, t.y + 13)
+    }
+    x0 = Math.floor(x0)
+    x1 = Math.ceil(x1)
+    const w = x1 - x0
+    const h = y1 - y0
+    const edge = me ? n.color : darken(n.color, 0.55)
+    n.plate.rect(x0 + 1, y0, w - 2, h).fill(edge)
+    n.plate.rect(x0, y0 + 1, w, h - 2).fill(edge)
+    n.plate.rect(x0 + 1, y0 + 1, w - 2, h - 2).fill({ color: 0x171210, alpha: 0.92 })
+  }
 
   private betPos(n: SeatNode, me: boolean): { x: number; y: number } {
     const g = this.geom
@@ -709,12 +787,71 @@ export class SceneEngine {
       bx = sp.x + sp.dx * inward
       by = sp.y + sp.dy * inward
       if (sp.dy > 0.5 && Math.abs(sp.dx) < 0.3) {
-        bx = sp.x - (face ? 66 : 29)
-        by = sp.y + (face ? 24 : 6)
+        bx = sp.x - 29
+        by = sp.y + 6
+      }
+      if (face) {
+        const r = this.revealSpot(sp, count)
+        return { x: Math.round(r.x + (i - (count - 1) / 2) * r.gap), y: Math.round(r.y) }
       }
       gap = face ? 24 : 6
     }
     return { x: Math.round(bx + (i - (count - 1) / 2) * gap), y: Math.round(by) }
+  }
+
+  /**
+   * Onde ficam as cartas viradas de um adversário. Para dentro da mesa quando cabe; se cobrir o tabuleiro,
+   * tenta ao lado do avatar (assentos de cima, oposto ao nome), acima e abaixo dele. `moved` = saiu do lugar normal.
+   */
+  private revealSpot(sp: SeatSpot, count: number): { x: number; y: number; gap: number; moved: boolean } {
+    const g = this.geom
+    const inward = Math.abs(sp.dx) > 0.5 ? 48 : 38
+    const first = { x: sp.x + sp.dx * inward, y: sp.y + sp.dy * inward, gap: 24, moved: false }
+    if (this.props?.view.mode !== 'holdem' || g.compact) return first
+    const tight = 18
+    const cands = [first]
+    if (this.topSeat(sp)) cands.push({ x: sp.x + (sp.label === 'right' ? -1 : 1) * (32 + (count - 1) * 9), y: Math.min(sp.y + 14, g.board[0].y - 50), gap: tight, moved: true })
+    cands.push({ x: sp.x + sp.dx * 14, y: sp.y - 46, gap: tight, moved: true })
+    cands.push({ x: sp.x + sp.dx * 14, y: sp.y + 62, gap: tight, moved: true })
+    type Box = { x0: number; x1: number; y0: number; y1: number }
+    const boxOf = (c: { x: number; y: number; gap: number }, k = count): Box => {
+      const hw = 16 + ((k - 1) * c.gap) / 2
+      return { x0: c.x - hw, x1: c.x + hw, y0: c.y - 24, y1: c.y + 24 }
+    }
+    const area = (a: Box, b: Box) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0))
+    // obstáculos: tabuleiro, outros avatares e as viradas (no lugar normal) de quem também mostra cartas
+    const obstacles: Box[] = [{ x0: g.board[0].x - 18, x1: g.board[4].x + 18, y0: g.board[0].y - 26, y1: g.board[0].y + 26 }]
+    for (const o of this.nodes.values()) {
+      if (o.spot === sp || !o.seat) continue
+      obstacles.push({ x0: o.spot.x - 15, x1: o.spot.x + 15, y0: o.spot.y - 15, y1: o.spot.y + 15 })
+      if (o.seat.cards && o.seat.playerId !== this.props?.me) {
+        const oi = Math.abs(o.spot.dx) > 0.5 ? 48 : 38
+        obstacles.push(boxOf({ x: o.spot.x + o.spot.dx * oi, y: o.spot.y + o.spot.dy * oi, gap: 24 }, o.seat.cards.length))
+      }
+    }
+    const cost = (c: { x: number; y: number; gap: number }) => {
+      const bx = boxOf(c)
+      if (bx.x0 < 1 || bx.x1 > g.w - 1 || bx.y0 < 1 || bx.y1 > g.h - 1) return Infinity
+      // fora do lugar normal, as cartas não saem da mesa (nada de cartas flutuando na parede)
+      if (c !== first && (bx.y0 < g.table.y - 12 || bx.y1 > g.table.y + g.table.h + 12)) return Infinity
+      return obstacles.reduce((acc, o) => acc + area(bx, o), 0)
+    }
+    let best = first
+    let bestCost = cost(first)
+    for (const c of cands.slice(1)) {
+      if (bestCost === 0) break
+      const k = cost(c)
+      if (k < bestCost) {
+        best = c
+        bestCost = k
+      }
+    }
+    return best
+  }
+
+  /** Assento na metade de cima da mesa (nome ao lado do avatar). */
+  private topSeat(sp: SeatSpot): boolean {
+    return !this.geom.compact && sp.label !== 'below'
   }
 
   private syncHoles(n: SeatNode, count: number, me: boolean, hl: Set<string>) {
@@ -737,6 +874,8 @@ export class SceneEngine {
       h.alpha = s.status === 'desistiu' ? 0.5 : hl.size && !lit && card ? 0.6 : 1
       if (lit) this.pulse.push({ s: h, baseY: pos.y, k: i + 5 })
     })
+    // as viradas ficam onde estavam as fichas desse assento: esconde as fichas enquanto aparecem (o valor segue na placa)
+    n.stackLayer.visible = !(faceUp && !me && count > 0 && this.revealSpot(n.spot, count).moved)
   }
 
   private flipLock = new Set<string>()
@@ -920,7 +1059,11 @@ export class SceneEngine {
     t.y = 0
     const w = Math.ceil(t.width) + 6
     const h = 17
-    const above = !(n && n.spot.y < g.table.y + 24 && n.spot.dy > 0.3)
+    // onde fica: acima da cabeça; nos assentos de baixo, ao lado (para fora da mesa), para não cobrir o tabuleiro
+    const sp = n?.spot
+    const beside = !!sp && !g.compact && sp.label === 'below' && sp.dy < -0.3
+    const out = sp && sp.x < g.center.x ? -1 : 1
+    const above = !beside
     const c = new Container()
     const bg = new Graphics()
     // caixa escura com borda de 1 px na cor da mensagem e cantos cortados; rabinho aponta para o avatar
@@ -928,19 +1071,24 @@ export class SceneEngine {
     bg.rect(-w / 2, -h / 2 + 1, w, h - 2).fill(tint)
     bg.rect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2).fill(0x221c19)
     bg.rect(-w / 2 + 2, -h / 2 + 1, w - 4, 1).fill(0x2e2622)
-    const ty = above ? h / 2 : -h / 2 - 3
-    bg.rect(-2, ty, 5, 3).fill(tint)
-    bg.rect(-1, ty + (above ? 0 : 1), 3, 2).fill(0x221c19)
+    if (beside) {
+      const tx = out > 0 ? -w / 2 - 3 : w / 2
+      bg.rect(tx, -2, 3, 5).fill(tint)
+      bg.rect(tx + (out > 0 ? 1 : 0), -1, 2, 3).fill(0x221c19)
+    } else {
+      bg.rect(-2, h / 2, 5, 3).fill(tint)
+      bg.rect(-1, h / 2, 3, 2).fill(0x221c19)
+    }
     c.addChild(bg, t)
-    let x = Math.round(at.x)
+    let x = Math.round(beside && sp ? sp.x + out * (42 + w / 2) : at.x)
     x = Math.max(w / 2 + 2, Math.min(g.w - w / 2 - 2, x))
-    const y0 = Math.round(at.y + (above ? -36 : 36))
+    const y0 = Math.round(beside && sp ? sp.y - 2 : Math.max(h / 2 + 2, at.y - (n ? 33 : 0)))
     c.position.set(x, y0)
     this.fx.addChild(c)
     const rm = this.reduced()
     const life = rm ? 700 : 1200
     void this.tween(160, 'back.out(2)', (p) => {
-      if (!rm) c.y = y0 + Math.round((1 - p) * (above ? 5 : -5))
+      if (!rm) c.y = y0 + Math.round((1 - p) * (above ? 5 : 0))
     })
       .then(() => this.tweenRaw(life, () => undefined))
       .then(() => this.tweenRaw(200, (p) => (c.alpha = 1 - p)))

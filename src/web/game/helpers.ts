@@ -159,7 +159,7 @@ export function describeForScreenReader(view: PokerView, me: string | null): str
   const parts: string[] = []
   if (view.you?.hand.length) parts.push(`Sua mão: ${view.you.hand.map(cardName).join(', ')}.`)
   if (view.board.length) parts.push(`Na mesa: ${view.board.map(cardName).join(', ')}.`)
-  if (view.you?.best) parts.push(`Você tem ${view.you.best.name}.`)
+  if (view.you?.best) parts.push(`Você tem ${view.you.best.name}${view.you.best.onTable ? ', que está na mesa e vale para todos' : ''}.`)
   if (me && view.toAct === me && view.legal.length) {
     parts.push(`Sua vez. Você pode: ${actionButtons(view.legal).map((b) => b.label).join(', ')}.`)
   } else if (view.toAct) {

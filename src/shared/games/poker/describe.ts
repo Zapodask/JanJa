@@ -38,6 +38,48 @@ export function dePessoa(name: string): string {
   return /a$/i.test(name.trim()) ? `da ${name}` : `do ${name}`
 }
 
+/** cartas que formam a combinação em si (sem as de desempate): o par, os dois pares, a trinca, a quadra; nas mãos de 5, todas */
+export function coreCards(ev: Evaluated): Card[] {
+  switch (ev.category) {
+    case 0: return []
+    case 1: return ev.cards.slice(0, 2)
+    case 2: return ev.cards.slice(0, 4)
+    case 3: return ev.cards.slice(0, 3)
+    case 7: return ev.cards.slice(0, 4)
+    default: return ev.cards
+  }
+}
+
+/** a combinação está toda na mesa (vale para todo mundo)? Carta alta nunca conta como "da mesa". */
+export function isOnTable(ev: Evaluated, hole: readonly Card[]): boolean {
+  const core = coreCards(ev)
+  return core.length > 0 && core.every((c) => !hole.includes(c))
+}
+
+/**
+ * Quando as duas mãos têm o mesmo nome (ex.: os dois com Par de Valetes), o que decidiu.
+ * Ex.: { rule: 'vale a carta mais alta de fora', win: 'Ás', lose: '9' }. null se os nomes diferem ou se empataram.
+ */
+export function tieBreak(w: Evaluated, l: Evaluated): { rule: string; win: string; lose: string } | null {
+  if (w.category !== l.category || handName(w) !== handName(l) || w.value === l.value) return null
+  const n = Math.max(w.tb.length, l.tb.length)
+  for (let i = 0; i < n; i++) {
+    const a = w.tb[i] ?? 0
+    const b = l.tb[i] ?? 0
+    if (a === b) continue
+    const rule =
+      w.category === 0
+        ? i === 0
+          ? 'vale a carta mais alta'
+          : 'vale a próxima carta mais alta'
+        : w.category === 5
+          ? 'vale a carta mais alta do flush'
+          : 'vale a carta mais alta de fora'
+    return { rule, win: rankName(a), lose: rankName(b) }
+  }
+  return null
+}
+
 /** melhor mão com as cartas visíveis; null se não houver cartas */
 export function bestHand(mode: PokerMode, hole: readonly Card[], board: readonly Card[]): { ev: Evaluated; info: HandInfo } | null {
   const all = [...hole, ...board]
@@ -48,7 +90,9 @@ export function bestHand(mode: PokerMode, hole: readonly Card[], board: readonly
   }
   if (all.length < 2) return null
   const ev = evaluate(all)
-  return { ev, info: toHandInfo(ev) }
+  const info = toHandInfo(ev)
+  if (board.length > 0 && isOnTable(ev, hole)) info.onTable = true
+  return { ev, info }
 }
 
 /**

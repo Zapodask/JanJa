@@ -208,7 +208,10 @@ export function seatPositions(n: number, g: SceneGeom): SeatSpot[] {
     const vy = g.center.y - y
     const len = Math.hypot(vx, vy) || 1
     const top = Math.cos(a) < -0.25
-    const label: SeatSpot['label'] = g.compact ? (x >= g.center.x ? 'right' : 'left') : top ? (x >= g.center.x ? 'right' : 'left') : 'below'
+    // na faixa o nome vai para fora; se não houver espaço até a borda (~48 px), vai para baixo do avatar
+    const outer: SeatSpot['label'] = x >= g.center.x ? 'right' : 'left'
+    const room = outer === 'right' ? g.w - x : x
+    const label: SeatSpot['label'] = g.compact ? (room >= 64 || y < g.center.y - 10 ? outer : 'below') : top ? outer : 'below'
     out.push({ x: Math.round(x), y: Math.round(y), angle: Math.round((a * 180) / Math.PI), dx: vx / len, dy: vy / len, label })
   }
   return out

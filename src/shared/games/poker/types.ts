@@ -79,6 +79,8 @@ export interface HandInfo {
   name: string
   /** as cartas que formam a mão (5 no Hold'em, 3 no modo 3 cartas), para acender na mesa */
   cards: Card[]
+  /** a combinação (o par, a trinca, a sequência...) está inteira na mesa e vale para todos; só aparece na sua mão */
+  onTable?: boolean
 }
 
 // ---------- visão (servidor -> cada pessoa) ----------

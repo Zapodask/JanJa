@@ -806,7 +806,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
           >
             <Icon name="chart" size={20} />
           </button>
-          <button className="ctl" onClick={() => void copy()}>
+          <button className="ctl copy" onClick={() => void copy()} data-tip="Copiar link da sala" aria-label="Copiar link da sala">
             <Icon name="link" size={20} />
             <span className="lbl">Copiar link</span>
           </button>

@@ -162,11 +162,35 @@ describe('fim de mão e explicações', () => {
     c = playOut(c)
     expect(viewOf(c, null).showdown?.explanation).toBe('Pedro ganhou com Par de Ases (bateu o Par de Reis da Bia)')
   })
+  it('mesmo par na mesa: explica o desempate pela carta de fora', () => {
+    let c = start(2, {}, 0, [{ playerId: 'p0', name: 'Pedro' }, { playerId: 'p1', name: 'Caio' }])
+    c.state = rig(c.state, { p0: 'Ah2d', p1: '9s3c' }, 'KcJh7c8sJd')
+    c = playOut(c)
+    expect(viewOf(c, null).showdown?.explanation).toBe(
+      'Pedro ganhou no desempate: Pedro e Caio tinham Par de Valetes, que está na mesa, e vale a carta mais alta de fora (Ás contra Rei)'
+    )
+  })
+  it('mesmo par vindo da mão: desempate sem dizer que está na mesa', () => {
+    let c = start(2, {}, 0, [{ playerId: 'p0', name: 'Pedro' }, { playerId: 'p1', name: 'Bia' }])
+    c.state = rig(c.state, { p0: 'QhAd', p1: 'Qs9c' }, 'Qc7h4s2d3c')
+    c = playOut(c)
+    expect(viewOf(c, null).showdown?.explanation).toBe('Pedro ganhou no desempate: Pedro e Bia tinham Par de Damas, e vale a carta mais alta de fora (Ás contra 9)')
+  })
+  it('"Você tem" avisa quando a combinação está na mesa', () => {
+    let c = start(2, {}, 0, [{ playerId: 'p0', name: 'Pedro' }, { playerId: 'p1', name: 'Bia' }])
+    c.state = rig(c.state, { p0: 'Ah2d', p1: '9s3c' }, 'KcJh7c8sJd')
+    c = act(c, 'p0', 'call'); c = act(c, 'p1', 'check')
+    c = act(c, 'p1', 'check'); c = act(c, 'p0', 'check')
+    c = act(c, 'p1', 'check'); c = act(c, 'p0', 'check')
+    const best = viewOf(c, 'p0').you?.best
+    expect(best?.name).toBe('Par de Valetes')
+    expect(best?.onTable).toBe(true)
+  })
   it('empate: dividem o pote', () => {
     let c = start(2, {}, 0, [{ playerId: 'p0', name: 'Bia' }, { playerId: 'p1', name: 'Pedro' }])
     c.state = rig(c.state, { p0: '2c3d', p1: '4c5d' }, 'AsKsQsJsTs')
     c = playOut(c)
-    expect(viewOf(c, null).showdown?.explanation).toBe('Pedro e Bia dividiram o pote com Royal flush')
+    expect(viewOf(c, null).showdown?.explanation).toBe('Pedro e Bia dividiram o pote com Royal flush (a melhor mão é a da mesa, vale para todos)')
     expect(stackOf(c, 'p0')).toBe(1000)
     expect(stackOf(c, 'p1')).toBe(1000)
   })

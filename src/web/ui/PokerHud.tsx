@@ -52,7 +52,10 @@ export function PokerHud(p: Props) {
   let help: string
   if (!view.you) help = 'Você está assistindo.'
   else if (mine && (mine.status === 'desistiu' || mine.status === 'fora')) help = 'Você desistiu desta mão.'
-  else if (view.you.best) help = `Você tem: ${view.you.best.name}`
+  else if (view.you.best)
+    help = view.you.best.onTable
+      ? `Você tem: ${view.you.best.name}, que está na mesa${[1, 2, 3, 7].includes(view.you.best.category) ? ' (vale para todos: desempata a carta mais alta de fora)' : ' (vale para todos)'}`
+      : `Você tem: ${view.you.best.name}`
   else help = view.you.hand.length ? 'Aguardando as cartas da mesa.' : 'Aguardando a próxima mão.'
 
   return (

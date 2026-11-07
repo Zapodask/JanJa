@@ -73,7 +73,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
               Poker facilitado para 2 a 8 pessoas. Os botões já mostram o valor e o jogo explica quem ganhou.
             </p>
             <div className="games-options">
-              <label>
+              <div className="games-opt">
                 <span>Modo</span>
                 <Dropdown
                   icon="cards"
@@ -82,8 +82,8 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                   options={MODES}
                   onChange={(v) => setOpts({ ...opts, mode: v === 'tres' ? 'tres' : 'holdem' })}
                 />
-              </label>
-              <label>
+              </div>
+              <div className="games-opt">
                 <span>Duração</span>
                 <Dropdown
                   icon="clock"
@@ -92,8 +92,8 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                   options={MINUTES}
                   onChange={(v) => setOpts({ ...opts, minutes: ([0, 15, 30, 45].includes(Number(v)) ? Number(v) : 30) as PokerOptions['minutes'] })}
                 />
-              </label>
-              <label>
+              </div>
+              <div className="games-opt">
                 <span>Fichas</span>
                 <Dropdown
                   icon="plus"
@@ -102,7 +102,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                   options={BUYS}
                   onChange={(v) => setOpts({ ...opts, buy: v === 'torneio' ? 'torneio' : 'recompra' })}
                 />
-              </label>
+              </div>
             </div>
             <div className="modal-actions">
               <button onClick={onClose}>Agora não</button>

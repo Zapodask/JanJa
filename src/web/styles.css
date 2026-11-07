@@ -248,7 +248,7 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border: 0; bo
 .cell.leaving .caption { opacity: 0; }
 
 /* barra de controles presa ao rodapé */
-.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; background: var(--sofa); border-top: 1px solid var(--rug); }
+.controls { container-type: inline-size; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; background: var(--sofa); border-top: 1px solid var(--rug); }
 .ctl.mic { min-width: 124px; }
 .ctl.mic.is-live { --fg: var(--on); box-shadow: 0 0 0 calc(var(--ring, 0) * 1px) var(--lamp); transition: box-shadow 0.1s linear, background-color 0.15s, border-color 0.15s, color 0.15s, transform 0.12s; }
 .ctl.mic.is-muted { --fg: var(--off); }
@@ -282,6 +282,14 @@ input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border: 0; bo
 @keyframes fade { from { opacity: 0; } }
 @keyframes pop { from { opacity: 0; transform: scale(0.96); } }
 
+/* a barra encolhe os rótulos secundários antes de quebrar linha */
+@container (max-width: 1230px) {
+  .controls .dd-btn small, .controls .copy .lbl { display: none; }
+  .controls .copy { padding: 0 12px; }
+}
+@container (max-width: 1040px) {
+  .controls .dd .lbl, .controls .games .lbl { display: none; }
+}
 @media (max-width: 900px) {
   .sidebar { position: absolute; z-index: 30; inset: 0 auto 0 0; }
   .controls .lbl { display: none; }
@@ -460,8 +468,8 @@ button.link:hover:not(:disabled) { --fg: var(--paper); }
 .games-head { display: flex; align-items: center; justify-content: space-between; }
 .games-lead { margin: 0; }
 .games-options { display: flex; flex-direction: column; gap: 12px; }
-.games-options label { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.games-options label > span { font-weight: 600; color: var(--dust); }
+.games-options .games-opt { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.games-options .games-opt > span { font-weight: 600; color: var(--dust); }
 .games-options .dd-btn { min-width: 200px; justify-content: space-between; }
 .games-options .dd.down .dd-panel { left: auto; right: 0; }
 .games-panel .modal-actions { justify-content: flex-end; }
@@ -478,7 +486,7 @@ button.link:hover:not(:disabled) { --fg: var(--paper); }
   .hud-actions .act { flex: 1 1 40%; height: 52px; font-size: 16px; }
   .hud-tools { justify-content: space-between; }
   .games-seats { grid-template-columns: 1fr; }
-  .games-options label { flex-direction: column; align-items: stretch; gap: 4px; }
+  .games-options .games-opt { flex-direction: column; align-items: stretch; gap: 4px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .hud-actions .act, .game-invite, .hands-table { animation: none; }
