@@ -45,10 +45,12 @@ interface JanProps {
   pose: PoseName
   /** múltiplo de 24 (96, 120, 144, 192) */
   size?: number
+  /** chão rolando na caminhada (caminhar no lugar). Desligue quando ele anda de verdade pela tela. */
+  ground?: boolean
 }
 
 /** Jan, o mascote. Decorativo (sempre ao lado de texto que já diz tudo). */
-export function Jan({ pose, size = 144 }: JanProps) {
+export function Jan({ pose, size = 144, ground = true }: JanProps) {
   const reduced = usePrefersReducedMotion()
   const def = POSES[pose]
   const [step, setStep] = useState(0)
@@ -64,7 +66,7 @@ export function Jan({ pose, size = 144 }: JanProps) {
   return (
     <div className={`jan jan-${pose}`} style={{ width: size }}>
       <Sprite frame={frame} size={size} />
-      {pose === 'walk' && <Ground size={size} step={reduced ? 0 : step} />}
+      {pose === 'walk' && ground && <Ground size={size} step={reduced ? 0 : step} />}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useRef, useEffect, useState, type FormEvent } from 'react'
 import { CreateRoomResponseSchema, MAX_NAME_LENGTH, parseRoomInput } from '../../shared/protocol'
 import {
   cleanName,
@@ -15,10 +15,10 @@ import { canShareScreen } from '../useRoom'
 import { Avatar } from './Avatar'
 import { Brand } from './Brand'
 import { Icon } from './icons'
-import { Jan, PixelTv } from './Pixel'
 import { startTour, stopTour } from './tour'
 import { HOME_STEPS, shouldAskTour, shouldAutoTour } from './tourLogic'
 import { TourPrompt } from './TourPrompt'
+import { HomeTv, RoamingJan } from './HomeScene'
 
 interface Props {
   name: string
@@ -52,12 +52,11 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(invalidPath ? 'Esse link de sala não é válido.' : '')
   const [recents, setRecents] = useState<RecentRoom[]>(recentRooms)
-  // momento único ao carregar: Jan aponta o controle e a TV liga; depois ele volta a respirar
-  const [pose, setPose] = useState<'remote' | 'idle'>('remote')
-  const [tvOn, setTvOn] = useState(false)
   // tour curto na primeira visita, depois que o Jan terminou o número do controle remoto
   // primeira visita: pergunta se quer o tour; quem já disse sim vê o tour da Home uma vez
   const [askTour, setAskTour] = useState(false)
+  const pageRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLElement>(null)
   useEffect(() => {
     const p = getPrefs()
     if (shouldAskTour(p.tourAnswer, p.tourDone, p.homeTourDone)) {
@@ -69,14 +68,6 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
     return () => clearTimeout(t)
   }, [])
   useEffect(() => () => stopTour(true), [])
-  useEffect(() => {
-    const a = setTimeout(() => setTvOn(true), 700)
-    const b = setTimeout(() => setPose('idle'), 2800)
-    return () => {
-      clearTimeout(a)
-      clearTimeout(b)
-    }
-  }, [])
 
   const commitName = (): string | null => {
     const n = cleanName(draft)
@@ -126,7 +117,8 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
   }
 
   return (
-    <main className="lobby">
+    <div className="home-page" ref={pageRef}>
+    <main className="lobby" ref={contentRef}>
       <header className="hero">
         <Brand size="xl" draw />
         <h1>
@@ -134,10 +126,7 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
         </h1>
       </header>
 
-      <div className="hero-pixels" aria-hidden="true">
-        <Jan pose={pose} size={192} />
-        <PixelTv on={tvOn} size={192} />
-      </div>
+      <HomeTv />
 
       {!canShareScreen() && (
         <p className="notice">
@@ -228,5 +217,7 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
         <TourPrompt onYes={() => window.setTimeout(() => startTour('home', HOME_STEPS), 150)} onClose={() => setAskTour(false)} />
       )}
     </main>
+      <RoamingJan pageRef={pageRef} contentRef={contentRef} />
+    </div>
   )
 }
