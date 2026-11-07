@@ -17,10 +17,27 @@ interface Item {
 
 const git = (args: string[]) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
 
-/** Commits do intervalo, sem merges. Início só de zeros (branch nova no push) = só o último. */
+const exists = (ref: string): boolean => {
+  try {
+    git(['cat-file', '-e', `${ref}^{commit}`])
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Commits do intervalo, sem merges.
+ * - início só de zeros (branch nova no push): só o último commit;
+ * - início que não existe mais (push forçado, histórico reescrito): o histórico inteiro até o fim.
+ */
 function commitsIn(range: string): Item[] {
   const [from, to] = range.split('..')
-  const args = /^0+$/.test(from ?? '') || !to ? ['-1', to || from] : [range]
+  let args: string[]
+  if (!to) args = ['-1', from]
+  else if (/^0+$/.test(from)) args = ['-1', to]
+  else if (!exists(from)) args = [to]
+  else args = [range]
   const out = git(['log', '--no-merges', '--format=%h%x00%B%x1e', ...args])
   return out
     .split('\x1e')

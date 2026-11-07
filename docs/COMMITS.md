@@ -65,11 +65,11 @@ Escopo novo: acrescente em `scripts/commit-rules.ts` e nesta tabela no mesmo com
 
 Merges, `Revert "..."` gerado pelo git e `fixup!`/`squash!` são ignorados.
 
-## Como o histórico antigo ficaria no padrão
+## Histórico renomeado
 
-Os 23 commits até `a3ba9c0` são anteriores ao padrão e não são reescritos (reescrever o `main` quebraria o clone de quem já baixou). Esta tabela serve de referência:
+Os 23 primeiros commits foram feitos antes do padrão e foram renomeados em 07/11/2026 (`git filter-branch`, com push forçado). Por isso os hashes antigos abaixo não existem mais no GitHub; ficam aqui só como referência. As tags `v0.1.x` e `helper-v0.1.x` foram movidas para os commits novos.
 
-| commit | antes | no padrão |
+| hash antigo | antes | depois |
 |---|---|---|
 | `a3ba9c0` | Camera: clique para maximizar | `feat(camera): clique para maximizar` |
 | `bb2506d` | Webcam na sala: palco, faixa e canto da mesa | `feat(camera): webcam no palco, na faixa e no canto da mesa` |
