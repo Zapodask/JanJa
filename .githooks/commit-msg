@@ -1,0 +1,4 @@
+#!/bin/sh
+# Recusa o commit se a mensagem não seguir o padrão (docs/COMMITS.md).
+# Para passar por cima numa emergência: git commit --no-verify
+exec npx --no-install tsx scripts/validate-commits.ts --file "$1"

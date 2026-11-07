@@ -83,6 +83,10 @@ npm run test:e2e    # 3 abas do Chrome contra o Worker local: mesh, 2 e 3 telas,
 
 O e2e usa o Chrome instalado. Para outro caminho, defina `CHROME_PATH`.
 
+## Commits
+
+As mensagens seguem `tipo(escopo): descrição`, por exemplo `feat(camera): clique para maximizar`. O padrão completo está em [docs/COMMITS.md](docs/COMMITS.md). Um hook recusa o commit fora do padrão no seu PC (ligado no `npm install`), e o GitHub valida cada push. Para conferir à mão: `npm run validate-commits`.
+
 ## Estrutura
 
 ```
