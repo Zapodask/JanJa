@@ -8,7 +8,7 @@ import { getPrefs, rememberRoom, setPrefs, volumeKey } from '../storage'
 import { useAudioBlocked } from '../playback'
 import { playDoorbell, playKnock, playShareOn, setSoundSink } from '../sounds'
 import { canShareScreen, canUseCamera, useRoom } from '../useRoom'
-import { CamStrip, type CamItem } from './Cams'
+import { CamFocus, CamStrip, type CamItem } from './Cams'
 import type { Rect, SceneLayout } from '../game/contract'
 import { GameAudioDriver } from '../game/GameAudioDriver'
 import { sameRects, shortcutAction, shouldInvite } from '../game/helpers'
@@ -300,6 +300,13 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
     return list
   }, [state.camera, state.micStream, state.me.micMuted, state.peers, name])
 
+  // câmera maximizada (clique numa câmera, como no Teams); some sozinha se a pessoa desligar
+  const [pinnedCam, setPinnedCam] = useState<string | null>(null)
+  const pinnedItem = pinnedCam ? camItems.find((c) => c.id === pinnedCam) : undefined
+  const pinCam = useCallback((id: string) => setPinnedCam((cur) => (cur === id ? null : id)), [])
+  const pinnedRef = useRef(false)
+  pinnedRef.current = !!pinnedItem
+
   const tiles = useMemo(() => {
     const list: { id: string; label: string; stream: MediaStream; local?: boolean }[] = []
     if (state.screen) list.push({ id: 'me', label: `${name} (você)`, stream: state.screen, local: true })
@@ -447,6 +454,11 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
       if (controlling) return // as teclas vão para o PC controlado
       if (panelOpenRef.current) return
       const k = e.key.toLowerCase()
+      if (k === 'escape' && pinnedRef.current && !document.fullscreenElement) {
+        e.preventDefault()
+        setPinnedCam(null)
+        return
+      }
       if (k === 'm') {
         e.preventDefault()
         void toggleMic()
@@ -490,6 +502,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
         const hovered = document.querySelector<HTMLElement>('[data-tile-id]:hover')?.dataset.tileId
         setHi((h) => (h ? null : (hovered ?? tilesRef.current[0]?.id ?? null)))
       } else if (k === 'escape') {
+        if (pinnedRef.current) return
         if (handsOpen) setHandsOpen(false)
         else if (hi && !document.fullscreenElement) setHi(null)
       } else if (myTurn) {
@@ -635,7 +648,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
         )}
 
         <div className="stage-body" ref={bodyRef}>
-          <div className={`stage-area ${tableMode ? `table-area ${hiTile ? 'has-hi' : ''} ${narrow ? 'narrow' : ''}` : ''}`}>
+          <div className={`stage-area ${tableMode ? `table-area ${hiTile ? 'has-hi' : ''} ${narrow ? 'narrow' : ''}` : ''} ${pinnedItem ? 'has-pin' : ''}`}>
             {tableMode && view && (
               <div className="scene-host">
                 <Suspense
@@ -659,7 +672,15 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
                 </Suspense>
               </div>
             )}
-            {camItems.length > 0 && <CamStrip items={camItems} mode={tableMode ? 'flutuante' : shown.length === 0 ? 'palco' : 'faixa'} />}
+            {camItems.length > 0 && (
+              <CamStrip
+                items={camItems}
+                mode={tableMode ? 'flutuante' : shown.length === 0 && !pinnedItem ? 'palco' : 'faixa'}
+                pinned={pinnedItem ? pinnedItem.id : null}
+                onPin={pinCam}
+              />
+            )}
+            {pinnedItem && <CamFocus key={pinnedItem.id} item={pinnedItem} onClose={() => setPinnedCam(null)} />}
             {!tableMode && shown.length === 0 && camItems.length === 0 && (
               <div className="empty" data-tour="stage">
                 <div className="scene" aria-hidden="true">
