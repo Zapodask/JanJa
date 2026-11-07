@@ -1,0 +1,78 @@
+/**
+ * Contrato da onda 2 (mesa do poker), escrito pelo planejador.
+ * - CENA (Pixi): desenha a sala pixel e anima, a partir da visão e dos eventos. Não fala com a rede.
+ * - SALA (React): conecta no WebSocket, mostra lobby/convite/botões/ajuda em HTML, posiciona os vídeos nas TVs.
+ * - ÁUDIO: música chiptune e efeitos, gerados em Web Audio.
+ */
+import type { GameLobby } from '../../shared/games/protocol'
+import type { PokerEvent, PokerView } from '../../shared/games/poker/types'
+
+// ---------------- estado do jogo no cliente (SALA produz, CENA e ÁUDIO consomem) ----------------
+
+export interface EventBatch {
+  seq: number
+  events: PokerEvent[]
+}
+
+export interface GameClientState {
+  lobby: GameLobby | null
+  view: PokerView | null
+  /** último lote de eventos recebido (a CENA anima a partir dele; o seq evita animar duas vezes) */
+  lastEvents: EventBatch | null
+  /** meu playerId na partida (null = espectador ou fora) */
+  me: string | null
+}
+
+// ---------------- CENA ----------------
+
+/** Retângulo em pixels CSS, relativo ao canto superior esquerdo do container da cena. */
+export interface Rect {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+export type SceneLayout =
+  /** padrão: parede com as TVs em cima, mesa embaixo, ocupando o palco */
+  | 'mesa'
+  /** uma TV em destaque (vídeo grande em HTML por cima); a cena vira uma faixa baixa só com a mesa */
+  | 'faixa'
+
+export interface PokerSceneProps {
+  view: PokerView
+  lastEvents: EventBatch | null
+  me: string | null
+  /** cor de cada jogador (mesma do avatar da sala), por playerId */
+  colors: Record<string, string>
+  /** quantas TVs desenhar na parede (uma por tela compartilhada; 0 = uma TV desligada decorativa) */
+  tvCount: number
+  layout: SceneLayout
+  reducedMotion: boolean
+  /** a cena informa onde ficaram os buracos das TVs (para a SALA posicionar os <video>) — chamado ao mudar */
+  onTvRects?: (rects: Rect[]) => void
+  /** clique numa TV da parede (índice) */
+  onTvClick?: (index: number) => void
+  /** a cena informa onde estão as cartas destacadas da minha mão etc., se a SALA quiser ancorar HTML (opcional) */
+  onAnchors?: (anchors: { myHand?: Rect; pot?: Rect; seats: Record<string, Rect> }) => void
+}
+
+// ---------------- ÁUDIO ----------------
+
+export type MusicTrack = 'calma' | 'tensao' | 'vitoria'
+
+export interface GameAudio {
+  /** liga a música (precisa de gesto do usuário antes; chame depois de um clique) */
+  startMusic(track?: MusicTrack): void
+  stopMusic(): void
+  /** troca de faixa sincronizada no próximo compasso, com crossfade */
+  setTrack(track: MusicTrack): void
+  setMusicVolume(v: number): void // 0..1
+  /** 0 = sem ducking, 1 = abaixa ao máximo (a SALA passa o nível de voz da sala) */
+  setDuck(level: number): void
+  /** efeito sonoro para um evento do jogo (respeita o liga/desliga dos sons da sala, controlado pela SALA) */
+  sfx(name: SfxName, opts?: { count?: number }): void
+  dispose(): void
+}
+
+export type SfxName = 'shuffle' | 'deal' | 'flip' | 'chip' | 'check' | 'fold' | 'turn' | 'allin' | 'win' | 'rebuy' | 'podium'

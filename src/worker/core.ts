@@ -9,6 +9,9 @@ import {
   type PeerState,
   type ServerMessage
 } from '../shared/protocol'
+import { cryptoRng, type Rng } from '../shared/games/types'
+import type { GameRegistry } from '../shared/games/registry'
+import { GameHost, isGameMessage, type GameSnapshot } from './game/host'
 
 /**
  * Regras da sala, sem nada da Cloudflare: o Durable Object só adapta WebSockets para `Conn`.
@@ -19,9 +22,11 @@ export interface ConnData {
   peerId?: string
   name?: string
   isHost?: boolean
+  /** identidade estável da pessoa nesta sala (recupera a cadeira do jogo) */
+  clientId?: string
   state?: PeerState
   /** pedido de entrada aguardando o host */
-  pending?: { requestId: string; name: string }
+  pending?: { requestId: string; name: string; clientId?: string }
 }
 
 export interface Conn {
@@ -43,6 +48,12 @@ export interface RoomDeps {
   newId(): string
   iceServers(): Promise<IceServer[]>
   maxPeers?: number
+  /** jogos: tudo opcional (sem eles o jogo vive só em memória) */
+  now?(): number
+  rng?(): Rng
+  loadGame?(): GameSnapshot | undefined
+  saveGame?(snapshot: GameSnapshot | null): void
+  registry?: GameRegistry
 }
 
 const joined = (c: Conn): boolean => !!c.data().peerId
@@ -64,7 +75,19 @@ function info(c: Conn): PeerInfo {
 }
 
 export class RoomCore {
-  constructor(private readonly deps: RoomDeps) {}
+  readonly game: GameHost
+
+  constructor(private readonly deps: RoomDeps) {
+    this.game = new GameHost({
+      conns: () => this.peers(),
+      now: () => (deps.now ?? Date.now)(),
+      rng: () => (deps.rng ?? cryptoRng)(),
+      newId: () => deps.newId(),
+      load: () => deps.loadGame?.(),
+      save: (s) => deps.saveGame?.(s),
+      registry: deps.registry
+    })
+  }
 
   private get maxPeers(): number {
     return this.deps.maxPeers ?? MAX_PEERS
@@ -100,6 +123,8 @@ export class RoomCore {
     const me = conn.data()
     if (!me.peerId) return this.fail(conn, 'not-joined', 'Entre na sala antes.')
 
+    if (isGameMessage(msg)) return this.game.handle(conn, msg)
+
     if (msg.type === 'signal') {
       const target = this.peers().find((c) => c.data().peerId === msg.to)
       if (!target) return this.fail(conn, 'unknown-peer', 'Participante não encontrado.')
@@ -115,10 +140,10 @@ export class RoomCore {
       if (!me.isHost) return
       const guest = this.deps.conns().find((c) => c.data().pending?.requestId === msg.requestId)
       if (!guest) return
-      const { name } = guest.data().pending!
+      const { name, clientId } = guest.data().pending!
       guest.setData({ ...guest.data(), pending: undefined })
       if (!msg.approved) return this.fail(guest, 'denied', 'O host recusou a entrada.', true)
-      return this.admit(guest, name, false)
+      return this.admit(guest, name, false, clientId)
     }
   }
 
@@ -137,24 +162,25 @@ export class RoomCore {
       const host = this.peers().find((c) => c.data().isHost)
       if (!host) return this.fail(conn, 'host-absent', 'Quem criou a sala não está nela agora.', true)
       const requestId = this.deps.newId()
-      conn.setData({ ...d, pending: { requestId, name: msg.name } })
+      conn.setData({ ...d, pending: { requestId, name: msg.name, clientId: msg.clientId } })
       conn.send({ type: 'waiting-approval' })
       host.send({ type: 'join-request', requestId, name: msg.name })
       return
     }
 
-    return this.admit(conn, msg.name, isHost)
+    return this.admit(conn, msg.name, isHost, msg.clientId)
   }
 
-  private async admit(conn: Conn, name: string, isHost: boolean): Promise<void> {
+  private async admit(conn: Conn, name: string, isHost: boolean, clientId?: string): Promise<void> {
     if (this.peers().length >= this.maxPeers) {
       return this.fail(conn, 'room-full', `A sala está cheia (máx. ${this.maxPeers}).`, true)
     }
     const existing = this.peers().map(info)
-    conn.setData({ peerId: this.deps.newId(), name, isHost, state: { ...INITIAL_STATE } })
+    conn.setData({ peerId: this.deps.newId(), name, isHost, clientId, state: { ...INITIAL_STATE } })
     const iceServers = await this.deps.iceServers()
     conn.send({ type: 'welcome', peerId: conn.data().peerId!, isHost, peers: existing, iceServers })
     this.broadcast({ type: 'peer-joined', peer: info(conn) }, conn)
+    this.game.onJoin(conn)
   }
 
   /** Chamado quando a conexão fecha. Retorna quantos participantes ainda estão na sala. */
@@ -167,6 +193,7 @@ export class RoomCore {
     if (d.peerId) {
       conn.setData({})
       this.broadcast({ type: 'peer-left', peerId: d.peerId }, conn)
+      this.game.onClose(d)
       if (d.isHost) {
         // sem host, ninguém aprova: avisa quem estava esperando
         for (const c of this.deps.conns()) {

@@ -29,8 +29,8 @@ describe('tour: filtragem dos passos', () => {
     const out = filterSteps(HOME_STEPS, (sel) => !sel.includes('recents'))
     expect(out).toHaveLength(2)
   })
-  it('o tour da sala tem os 10 passos do plano', () => {
-    expect(ROOM_STEPS).toHaveLength(10)
+  it('o tour da sala tem os 11 passos do plano', () => {
+    expect(ROOM_STEPS).toHaveLength(11)
   })
 })
 

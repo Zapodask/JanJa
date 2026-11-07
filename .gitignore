@@ -9,3 +9,6 @@ dist/
 
 # arquivos que o app do Claude salva
 Claude outputs/
+
+# revisão da arte do poker (gerada por npm run sprites)
+art-preview/

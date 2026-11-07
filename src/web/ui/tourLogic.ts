@@ -78,6 +78,13 @@ export const ROOM_STEPS: TourStep[] = [
     title: 'Sons de aviso',
     text: 'Campainha quando alguém pede para entrar, toc-toc quando pedem o controle do seu PC e um aviso quando alguém começa a compartilhar.'
   },
+  {
+    id: 'games',
+    selector: t('games'),
+    side: 'top',
+    title: 'Jogos',
+    text: 'Joguem poker sem sair da chamada. Abra uma mesa e os amigos recebem o convite.'
+  },
   { id: 'done', title: 'Pronto', text: 'Dá para rever este tour no botão ? da barra lateral.' }
 ]
 

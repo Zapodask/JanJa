@@ -7,6 +7,7 @@ import {
   type IceServer,
   type ServerMessage
 } from '../shared/protocol'
+import type { GameSnapshot } from './game/host'
 import { RoomCore, type Conn, type ConnData, type RoomConfig } from './core'
 
 export interface Env {
@@ -59,6 +60,10 @@ async function turnServers(env: Env): Promise<IceServer[]> {
 /** Uma instância por sala. Usa a Hibernation API: sala parada não gasta duração. */
 export class Room extends DurableObject<Env> {
   private config?: RoomConfig
+  private game?: GameSnapshot
+  /** quando a sala vazia expira (o alarme real é o mínimo entre isto e o prazo do jogo) */
+  private ttlAt = 0
+  private alarmAt?: number
   private readonly core: RoomCore
   private readonly rate = new WeakMap<WebSocket, { start: number; count: number }>()
 
@@ -66,13 +71,22 @@ export class Room extends DurableObject<Env> {
     super(ctx, env)
     ctx.blockConcurrencyWhile(async () => {
       this.config = await ctx.storage.get<RoomConfig>('config')
+      this.game = await ctx.storage.get<GameSnapshot>('game')
+      this.ttlAt = (await ctx.storage.get<number>('ttlAt')) ?? Date.now() + EMPTY_ROOM_TTL_MS
     })
     this.core = new RoomCore({
       conns: () => ctx.getWebSockets().map((ws) => this.conn(ws)),
       config: () => this.config,
       hash: sha256,
       newId: () => randomId(9),
-      iceServers: () => turnServers(env)
+      iceServers: () => turnServers(env),
+      loadGame: () => this.game,
+      saveGame: (snap) => {
+        this.game = snap ?? undefined
+        // sem await: a gravação é coalescida e as mensagens só saem depois dela (output gate)
+        if (snap) void ctx.storage.put('game', snap)
+        else void ctx.storage.delete('game')
+      }
     })
   }
 
@@ -106,7 +120,23 @@ export class Room extends DurableObject<Env> {
   async init(config: RoomConfig): Promise<void> {
     this.config = config
     await this.ctx.storage.put('config', config)
-    await this.ctx.storage.setAlarm(Date.now() + EMPTY_ROOM_TTL_MS)
+    await this.touchTtl()
+  }
+
+  /** Sala (re)começa a contar para expirar. */
+  private async touchTtl(): Promise<void> {
+    this.ttlAt = Date.now() + EMPTY_ROOM_TTL_MS
+    await this.ctx.storage.put('ttlAt', this.ttlAt)
+    await this.reschedule()
+  }
+
+  /** Alarme ÚNICO: o que vier primeiro entre o prazo do jogo e o fim do TTL. */
+  private async reschedule(): Promise<void> {
+    const deadline = this.core.game.nextDeadline()
+    const at = deadline === null ? this.ttlAt : Math.min(deadline, this.ttlAt)
+    if (at === this.alarmAt) return
+    this.alarmAt = at
+    await this.ctx.storage.setAlarm(at)
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -137,11 +167,13 @@ export class Room extends DurableObject<Env> {
       return conn.close(4000, 'rate-limited')
     }
     await this.core.onMessage(conn, message)
+    await this.reschedule()
   }
 
   async webSocketClose(ws: WebSocket): Promise<void> {
     const left = this.core.onClose(this.conn(ws))
-    if (left === 0) await this.ctx.storage.setAlarm(Date.now() + EMPTY_ROOM_TTL_MS)
+    if (left === 0) await this.touchTtl()
+    else await this.reschedule()
   }
 
   async webSocketError(ws: WebSocket): Promise<void> {
@@ -149,13 +181,22 @@ export class Room extends DurableObject<Env> {
   }
 
   async alarm(): Promise<void> {
-    const active = this.ctx.getWebSockets().some((ws) => !!(ws.deserializeAttachment() as ConnData | null)?.peerId)
-    if (active) {
-      await this.ctx.storage.setAlarm(Date.now() + EMPTY_ROOM_TTL_MS)
+    this.alarmAt = undefined
+    const now = Date.now()
+    if (this.config) this.core.game.onTick(now)
+    if (now >= this.ttlAt) {
+      const active = this.ctx.getWebSockets().some((ws) => !!(ws.deserializeAttachment() as ConnData | null)?.peerId)
+      if (active) {
+        await this.touchTtl()
+        return
+      }
+      this.config = undefined
+      this.game = undefined
+      this.core.game.reset()
+      await this.ctx.storage.deleteAll()
       return
     }
-    this.config = undefined
-    await this.ctx.storage.deleteAll()
+    await this.reschedule()
   }
 }
 

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ClientIdSchema, GameClientMessageSchemas, GameServerMessageSchemas } from './games/protocol'
 
 /**
  * Protocolo de sinalização do JanJa. Cada sala é um Durable Object na Cloudflare que só
@@ -47,12 +48,15 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
     type: z.literal('join'),
     name: z.string().trim().min(1).max(MAX_NAME_LENGTH),
     /** chave de quem criou a sala; dá o papel de host (aprova entradas) */
-    hostKey: z.string().max(128).optional()
+    hostKey: z.string().max(128).optional(),
+    /** identidade estável nesta sala (jogos): recupera a cadeira ao reconectar */
+    clientId: ClientIdSchema.optional()
   }),
   z.object({ type: z.literal('signal'), to: z.string().min(1).max(64), payload: SignalPayloadSchema }),
   z.object({ type: z.literal('state'), state: PeerStateSchema }),
   z.object({ type: z.literal('join-response'), requestId: z.string().max(64), approved: z.boolean() }),
-  z.object({ type: z.literal('ping') })
+  z.object({ type: z.literal('ping') }),
+  ...GameClientMessageSchemas
 ])
 export type ClientMessage = z.infer<typeof ClientMessageSchema>
 
@@ -93,7 +97,8 @@ export const ServerMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('signal'), from: z.string(), payload: SignalPayloadSchema }),
   z.object({ type: z.literal('state'), from: z.string(), state: PeerStateSchema }),
   z.object({ type: z.literal('pong') }),
-  z.object({ type: z.literal('error'), code: ErrorCodeSchema, message: z.string() })
+  z.object({ type: z.literal('error'), code: ErrorCodeSchema, message: z.string() }),
+  ...GameServerMessageSchemas
 ])
 export type ServerMessage = z.infer<typeof ServerMessageSchema>
 

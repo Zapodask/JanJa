@@ -1,0 +1,190 @@
+/** Funções puras da SALA do jogo: botões, atalhos, sons, textos. Sem React nem DOM (testáveis em Node). */
+import { rankName, rankValue, SUIT_NAME, suitOf } from '../../shared/games/poker/cards'
+import type { Card, LegalAction, PokerAction, PokerEvent, PokerMode, PokerView } from '../../shared/games/poker/types'
+import type { MusicTrack, Rect, SfxName } from './contract'
+
+// ---------- botões de ação ----------
+
+export interface ActionButton {
+  action: PokerAction
+  label: string
+  /** tecla de atalho (maiúscula) ou null */
+  key: 'P' | 'A' | 'D' | null
+  tone: 'primary' | 'default' | 'danger'
+}
+
+const ORDER: Record<LegalAction['kind'], number> = { fold: 0, check: 1, call: 1, raise: 2, allin: 3 }
+
+/** Botões na ordem da tela: Desistir, Passar/Pagar, Aumentar, Tudo. Rótulos já com os valores. */
+export function actionButtons(legal: LegalAction[]): ActionButton[] {
+  const canCheck = legal.some((a) => a.kind === 'check')
+  const hasRaise = legal.some((a) => a.kind === 'raise')
+  const out = legal.map((a): ActionButton => {
+    switch (a.kind) {
+      case 'check':
+        return { action: { kind: 'check' }, label: 'Passar', key: 'P', tone: 'default' }
+      case 'call':
+        return { action: { kind: 'call' }, label: `Pagar ${a.amount}`, key: 'P', tone: 'primary' }
+      case 'raise':
+        return {
+          action: { kind: 'raise' },
+          label: canCheck ? `Apostar ${a.to}` : `Aumentar para ${a.to}`,
+          key: 'A',
+          tone: 'default'
+        }
+      case 'allin':
+        return { action: { kind: 'allin' }, label: `Tudo (${a.amount})`, key: hasRaise ? null : 'A', tone: 'default' }
+      case 'fold':
+        return { action: { kind: 'fold' }, label: 'Desistir', key: 'D', tone: 'danger' }
+    }
+  })
+  return out.sort((x, y) => ORDER[x.action.kind] - ORDER[y.action.kind])
+}
+
+/** P = passar ou pagar (o que for legal), A = aumentar (ou tudo), D = desistir. */
+export function shortcutAction(key: string, legal: LegalAction[]): PokerAction | null {
+  const has = (k: LegalAction['kind']) => legal.some((a) => a.kind === k)
+  switch (key.toLowerCase()) {
+    case 'p':
+      return has('check') ? { kind: 'check' } : has('call') ? { kind: 'call' } : null
+    case 'a':
+      return has('raise') ? { kind: 'raise' } : has('allin') ? { kind: 'allin' } : null
+    case 'd':
+      return has('fold') ? { kind: 'fold' } : null
+    default:
+      return null
+  }
+}
+
+// ---------- eventos -> sons e faixas ----------
+
+export interface SfxCue {
+  name: SfxName
+  count?: number
+}
+
+const chips = (amount: number): number => Math.max(1, Math.min(6, Math.ceil(amount / 20)))
+
+export function sfxForEvent(ev: PokerEvent): SfxCue | null {
+  switch (ev.kind) {
+    case 'shuffle':
+      return { name: 'shuffle' }
+    case 'deal':
+      return { name: 'deal', count: Math.max(1, ev.to.length * ev.count) }
+    case 'street':
+      return ev.street === 'flop' ? { name: 'flip', count: ev.cards.length } : { name: 'turn' }
+    case 'blind':
+    case 'ante':
+      return { name: 'chip', count: chips(ev.amount) }
+    case 'act':
+      if (ev.action === 'check') return { name: 'check' }
+      if (ev.action === 'fold') return { name: 'fold' }
+      if (ev.action === 'allin') return { name: 'allin' }
+      return { name: 'chip', count: chips(ev.amount) }
+    case 'timeout':
+      return { name: 'fold' }
+    case 'reveal':
+      return { name: 'flip', count: ev.cards.length }
+    case 'win':
+      return { name: 'win' }
+    case 'rebuy':
+      return { name: 'rebuy' }
+    case 'end':
+      return { name: 'podium' }
+    case 'away':
+      return null
+  }
+}
+
+/** Faixa de música que o evento pede (null = não muda). All-in tensiona, fim vence, mão nova acalma. */
+export function trackForEvent(ev: PokerEvent): MusicTrack | null {
+  if (ev.kind === 'act' && ev.action === 'allin') return 'tensao'
+  if (ev.kind === 'end') return 'vitoria'
+  if (ev.kind === 'shuffle') return 'calma'
+  return null
+}
+
+/** Nível de ducking (0..1) a partir do maior nível de voz da sala. */
+export const duckFromLevel = (level: number): number => Math.max(0, Math.min(1, (level - 0.03) * 5))
+
+// ---------- textos ----------
+
+export function cardName(c: Card): string {
+  const v = rankValue(c)
+  const r = rankName(v)
+  return `${r} de ${SUIT_NAME[suitOf(c)]}`
+}
+
+/** "12:05" a partir de ms; nunca negativo. */
+export function formatClock(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000))
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+export interface HandRow {
+  name: string
+  example: string
+  hint: string
+}
+
+/** Tabela de mãos, da mais forte para a mais fraca (a ordem muda no modo de 3 cartas). */
+export function handsTable(mode: PokerMode): HandRow[] {
+  const royal: HandRow = { name: 'Royal flush', example: 'A K Q J 10 do mesmo naipe', hint: 'a melhor de todas' }
+  const sf: HandRow = { name: 'Straight flush', example: '5 6 7 8 9 do mesmo naipe', hint: 'sequência e mesmo naipe' }
+  const quad: HandRow = { name: 'Quadra', example: '8 8 8 8 e uma carta', hint: 'quatro iguais' }
+  const full: HandRow = { name: 'Full house', example: '7 7 7 e K K', hint: 'trinca mais par' }
+  const flush: HandRow = { name: 'Flush', example: 'cinco cartas de copas', hint: 'mesmo naipe' }
+  const straight: HandRow = { name: 'Sequência', example: '4 5 6 7 8', hint: 'números seguidos' }
+  const trips: HandRow = { name: 'Trinca', example: '9 9 9', hint: 'três iguais' }
+  const two: HandRow = { name: 'Dois pares', example: 'A A e 6 6', hint: 'dois pares diferentes' }
+  const pair: HandRow = { name: 'Par', example: 'K K', hint: 'duas iguais' }
+  const high: HandRow = { name: 'Carta alta', example: 'A', hint: 'nada acima, vale a maior' }
+  if (mode === 'tres') {
+    return [
+      { ...sf, example: '7 8 9 do mesmo naipe', hint: 'sequência e mesmo naipe' },
+      { ...trips },
+      { ...straight, example: '4 5 6', hint: 'números seguidos' },
+      { ...flush, example: 'três cartas de copas' },
+      pair,
+      high
+    ]
+  }
+  return [royal, sf, quad, full, flush, straight, trips, two, pair, high]
+}
+
+/** Texto para leitor de tela: minha mão, a mesa e o que posso fazer agora. */
+export function describeForScreenReader(view: PokerView, me: string | null): string {
+  const parts: string[] = []
+  if (view.you?.hand.length) parts.push(`Sua mão: ${view.you.hand.map(cardName).join(', ')}.`)
+  if (view.board.length) parts.push(`Na mesa: ${view.board.map(cardName).join(', ')}.`)
+  if (view.you?.best) parts.push(`Você tem ${view.you.best.name}.`)
+  if (me && view.toAct === me && view.legal.length) {
+    parts.push(`Sua vez. Você pode: ${actionButtons(view.legal).map((b) => b.label).join(', ')}.`)
+  } else if (view.toAct) {
+    const who = view.seats.find((s) => s.playerId === view.toAct)?.name
+    if (who) parts.push(`Vez de ${who}.`)
+  }
+  if (view.showdown) parts.push(view.showdown.explanation)
+  return parts.join(' ')
+}
+
+// ---------- convite ----------
+
+/** O convite "X abriu uma mesa" aparece para quem não abriu, não está sentado e ainda não dispensou. */
+export function shouldInvite(
+  lobby: { started: boolean; openedBy: string } | null,
+  seated: boolean,
+  myName: string,
+  dismissedFor: string | null
+): boolean {
+  if (!lobby || lobby.started || seated) return false
+  if (lobby.openedBy === myName) return false
+  return dismissedFor !== lobby.openedBy
+}
+
+/** Mesmos retângulos (evita re-render quando a cena repete o relatório). */
+export function sameRects(a: Rect[], b: Rect[]): boolean {
+  return a.length === b.length && a.every((r, i) => r.x === b[i].x && r.y === b[i].y && r.w === b[i].w && r.h === b[i].h)
+}

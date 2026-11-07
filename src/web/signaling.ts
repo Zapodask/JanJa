@@ -1,3 +1,4 @@
+import { clientId } from './storage'
 import { ServerMessageSchema, wsUrlFor, type ClientMessage, type ServerMessage } from '../shared/protocol'
 
 type Welcome = Extract<ServerMessage, { type: 'welcome' }>
@@ -35,7 +36,7 @@ export class SignalingClient {
       this.ws = ws
 
       ws.onopen = () => {
-        this.send({ type: 'join', name, hostKey })
+        this.send({ type: 'join', name, hostKey, clientId: clientId() })
         this.pinger = window.setInterval(() => this.send({ type: 'ping' }), PING_EVERY_MS)
       }
 

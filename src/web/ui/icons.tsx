@@ -128,6 +128,19 @@ const PATHS = {
       <path d="M12 3v7" />
     </>
   ),
+  cards: (
+    <>
+      <rect x="3.5" y="6" width="11" height="14" rx="2" />
+      <path d="M9 4l9.5 2.5a2 2 0 0 1 1.4 2.4L17.5 18M7.5 11.5h.01" />
+    </>
+  ),
+  music: (
+    <>
+      <path d="M9 18V6l10-2v12" />
+      <circle cx="6.5" cy="18" r="2.5" />
+      <circle cx="16.5" cy="16" r="2.5" />
+    </>
+  ),
   sliders: (
     <>
       <path d="M4 7h9M19 7h1M4 17h1M11 17h9" />

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { roomUrl } from '../../shared/protocol'
 import { useAudioLevel, useSpeaking } from '../audio'
 import type { PeerView, Route } from '../rtc/PeerManager'
@@ -8,7 +8,13 @@ import { getPrefs, rememberRoom, setPrefs, volumeKey } from '../storage'
 import { useAudioBlocked } from '../playback'
 import { playDoorbell, playKnock, playShareOn, setSoundSink } from '../sounds'
 import { canShareScreen, useRoom } from '../useRoom'
-import { Avatar } from './Avatar'
+import type { Rect, SceneLayout } from '../game/contract'
+import { GameAudioDriver } from '../game/GameAudioDriver'
+import { sameRects, shortcutAction, shouldInvite } from '../game/helpers'
+import { loadScene } from '../game/loaders'
+import { Avatar, toneOf } from './Avatar'
+import { GameInvite } from './GameInvite'
+import { GamesPanel } from './GamesPanel'
 import { ControlBanner, ControlRequestModal, ControlSection } from './Control'
 import { Brand, TvOff } from './Brand'
 import { Jan } from './Pixel'
@@ -19,6 +25,21 @@ import { useToast } from './Toasts'
 import { startTour, stopTour, tourActive } from './tour'
 import { ROOM_STEPS, shouldAskTour, shouldAutoTour } from './tourLogic'
 import { TourPrompt } from './TourPrompt'
+
+// a mesa (Pixi, GSAP, HUD) só é baixada quando há partida
+const PokerSceneLazy = lazy(loadScene)
+const PokerHudLazy = lazy(() => import('./PokerHud').then((m) => ({ default: m.PokerHud })))
+
+function useMedia(query: string): boolean {
+  const [on, setOn] = useState(() => matchMedia(query).matches)
+  useEffect(() => {
+    const mq = matchMedia(query)
+    const h = () => setOn(mq.matches)
+    mq.addEventListener('change', h)
+    return () => mq.removeEventListener('change', h)
+  }, [query])
+  return on
+}
 
 const ROUTE_LABEL: Record<Route, string> = {
   conectando: 'conectando',
@@ -99,7 +120,11 @@ interface Props {
 }
 
 export function Room({ roomId, name, hostKey, onLeave }: Props) {
-  const { state, toggleMic, startShare, stopShare, setPreset, answerRequest, reconnect } = useRoom(roomId, name, hostKey)
+  const { state, toggleMic, startShare, stopShare, setPreset, answerRequest, reconnect, game, gameApi, gameError } = useRoom(
+    roomId,
+    name,
+    hostKey
+  )
   const toast = useToast()
   const control = useControl({ manager: state.manager, screen: state.screen, peers: state.peers, notify: toast })
   const controlling = control.controller.phase === 'active'
@@ -281,6 +306,82 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   }, [tiles])
   const shown = [...tiles, ...ghosts.filter((g) => !tiles.some((t) => t.id === g.id))]
 
+  // ---------- jogo (poker) ----------
+  const view = game.view
+  const seated = !!game.lobby?.seats.some((x) => x.you)
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [showTable, setShowTable] = useState(true)
+  const [handsOpen, setHandsOpen] = useState(false)
+  const [hi, setHi] = useState<string | null>(null)
+  const [rects, setRects] = useState<Rect[]>([])
+  const [musicOn, setMusicOn] = useState(() => getPrefs().musicOn)
+  const [musicVolume, setMusicVolume] = useState(() => getPrefs().musicVolume)
+  const [dismissedFor, setDismissedFor] = useState<string | null>(null)
+  const [inviteSeq, setInviteSeq] = useState(0)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const ghostStyles = useRef(new Map<string, CSSProperties>())
+  const narrow = useMedia('(max-width: 700px) and (orientation: portrait)')
+  const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
+  const tableMode = !!view && showTable
+  const hiTile = tableMode && hi && tiles.some((t) => t.id === hi) ? hi : null
+  const layout: SceneLayout = hiTile ? 'faixa' : 'mesa'
+  const hasView = !!view
+
+  useEffect(() => {
+    if (hasView) {
+      setShowTable(true)
+      setPanelOpen(false)
+    } else {
+      setHi(null)
+      setHandsOpen(false)
+    }
+  }, [hasView])
+  useEffect(() => {
+    if (!game.lobby) setDismissedFor(null)
+  }, [game.lobby])
+  const inviteVisible = shouldInvite(game.lobby, seated, name, dismissedFor)
+  const wasInvite = useRef(false)
+  useEffect(() => {
+    if (inviteVisible && !wasInvite.current) setInviteSeq((n) => n + 1)
+    wasInvite.current = inviteVisible
+  }, [inviteVisible])
+  useEffect(() => {
+    if (gameError) toast(gameError.message, 'warn')
+  }, [gameError, toast])
+
+  const colors = useMemo(
+    () => Object.fromEntries((view?.seats ?? []).map((x) => [x.playerId, toneOf(x.name)])),
+    [view?.seats]
+  )
+  const onTvRects = useCallback((r: Rect[]) => setRects((prev) => (sameRects(prev, r) ? prev : r)), [])
+  const tilesRef2 = useRef(tiles)
+  tilesRef2.current = tiles
+  const onTvClick = useCallback((i: number) => {
+    const t = tilesRef2.current[i]
+    if (t) setHi((h) => (h === t.id ? null : t.id))
+  }, [])
+  const toggleMusic = (on: boolean) => {
+    setMusicOn(on)
+    setPrefs({ musicOn: on })
+  }
+  const changeMusicVolume = (v: number) => {
+    setMusicVolume(v)
+    setPrefs({ musicVolume: v })
+  }
+  const tableFor = (id: string, idx: number): { mode: 'rect' | 'hi' | 'strip' | 'parked'; style?: CSSProperties } | undefined => {
+    if (!tableMode) return undefined
+    if (hiTile) return { mode: id === hiTile ? 'hi' : 'parked' }
+    if (narrow) return { mode: 'strip' }
+    const r = idx < tiles.length ? rects[idx] : undefined
+    if (r) {
+      const style = { left: r.x, top: r.y, width: r.w, height: r.h }
+      ghostStyles.current.set(id, style)
+      return { mode: 'rect', style }
+    }
+    const g = ghostStyles.current.get(id)
+    return g ? { mode: 'rect', style: g } : { mode: 'parked' }
+  }
+
   const peerById = (id: string) => state.peers.find((p) => p.id === id)
   const viewers = state.peers.length
 
@@ -311,6 +412,10 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   // atalhos: M = mic, F = tela cheia, Esc = sair do foco
   const tilesRef = useRef(tiles)
   tilesRef.current = tiles
+  const tableModeRef = useRef(tableMode)
+  tableModeRef.current = tableMode
+  const panelOpenRef = useRef(panelOpen)
+  panelOpenRef.current = panelOpen
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
@@ -318,6 +423,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
       if (e.ctrlKey || e.metaKey || e.altKey) return
       if (tourActive()) return
       if (controlling) return // as teclas vão para o PC controlado
+      if (panelOpenRef.current) return
       const k = e.key.toLowerCase()
       if (k === 'm') {
         e.preventDefault()
@@ -330,7 +436,8 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
           tilesRef.current.length === 1
             ? document.querySelector<HTMLElement>(`[data-tile-id="${CSS.escape(tilesRef.current[0].id)}"]`)
             : null
-        const el = active ?? hovered ?? single
+        // na mesa, F leva o palco inteiro para tela cheia (a TV sozinha: duplo clique ou botão)
+        const el = tableModeRef.current ? bodyRef.current : (active ?? hovered ?? single)
         if (el) {
           e.preventDefault()
           toggleFullscreen(el)
@@ -340,6 +447,37 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [toggleMic, controlling])
+
+  // atalhos da mesa: P passar/pagar, A aumentar, D desistir, H tabela de mãos, G destaque da TV, Esc
+  const myTurn = !!view && !!game.me && view.toAct === game.me
+  useEffect(() => {
+    if (!tableMode || !view) return
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && (/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t.closest('[role="listbox"]'))) return
+      if (e.ctrlKey || e.metaKey || e.altKey || panelOpen || tourActive() || controlling) return
+      const k = e.key.toLowerCase()
+      if (k === 'h') {
+        e.preventDefault()
+        setHandsOpen((o) => !o)
+      } else if (k === 'g') {
+        e.preventDefault()
+        const hovered = document.querySelector<HTMLElement>('[data-tile-id]:hover')?.dataset.tileId
+        setHi((h) => (h ? null : (hovered ?? tilesRef.current[0]?.id ?? null)))
+      } else if (k === 'escape') {
+        if (handsOpen) setHandsOpen(false)
+        else if (hi && !document.fullscreenElement) setHi(null)
+      } else if (myTurn) {
+        const a = shortcutAction(k, view.legal)
+        if (a) {
+          e.preventDefault()
+          gameApi.act(a)
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [tableMode, view, panelOpen, controlling, handsOpen, hi, myTurn, gameApi])
 
   if (state.status === 'conectando' || state.status === 'aguardando-aprovacao' || state.status === 'erro') {
     return (
@@ -471,57 +609,120 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
           </div>
         )}
 
-        {shown.length === 0 ? (
-          <div className="empty" data-tour="stage">
-            <div className="scene" aria-hidden="true">
-              <Jan pose="wait" size={144} />
-              <TvOff />
-            </div>
-            <h2>Ninguém está compartilhando.</h2>
-            {canShare ? (
-              <button className="primary big" onClick={() => void share()}>
-                Compartilhar minha tela
-              </button>
-            ) : (
-              <p className="muted">Este navegador só assiste. Para compartilhar, use o Chrome ou o Edge no PC.</p>
-            )}
-          </div>
-        ) : (
-          <div
-            data-tour="stage"
-            className={`grid n${Math.min(shown.length, 4)}`}
-          >
-            {shown.map((t) => {
-              const leaving = !tiles.some((x) => x.id === t.id)
-              const peer = t.local ? undefined : peerById(t.id)
-              const who = peer?.name ?? t.label
-              return (
-                <VideoTile
-                  key={t.id}
-                  id={t.id}
-                  stream={t.stream}
-                  name={who}
-                  local={t.local}
-                  leaving={leaving}
-                  volume={t.local ? 1 : vol('screen', who)}
-                  onVolume={t.local ? undefined : (v) => setVol('screen', who, v)}
-                  sinkId={effectiveSink}
-                  badge={showStats && peer ? routeInfo(peer) : undefined}
-                  control={
-                    t.local || leaving
-                      ? undefined
-                      : {
-                          state: control.controller.phase !== 'idle' && control.controller.peer === t.id ? control.controller.phase : 'idle',
-                          canRequest: control.controller.phase === 'idle',
-                          onRequest: () => control.requestControl(t.id),
-                          onRelease: control.release,
-                          onInput: control.sendInput
-                        }
+        <div className="stage-body" ref={bodyRef}>
+          <div className={`stage-area ${tableMode ? `table-area ${hiTile ? 'has-hi' : ''} ${narrow ? 'narrow' : ''}` : ''}`}>
+            {tableMode && view && (
+              <div className="scene-host">
+                <Suspense
+                  fallback={
+                    <div className="scene-loading">
+                      <TvOff noise />
+                    </div>
                   }
-                />
-              )
-            })}
+                >
+                  <PokerSceneLazy
+                    view={view}
+                    lastEvents={game.lastEvents}
+                    me={game.me}
+                    colors={colors}
+                    tvCount={tiles.length}
+                    layout={layout}
+                    reducedMotion={reducedMotion}
+                    onTvRects={onTvRects}
+                    onTvClick={onTvClick}
+                  />
+                </Suspense>
+              </div>
+            )}
+            {!tableMode && shown.length === 0 && (
+              <div className="empty" data-tour="stage">
+                <div className="scene" aria-hidden="true">
+                  <Jan pose="wait" size={144} />
+                  <TvOff />
+                </div>
+                <h2>Ninguém está compartilhando.</h2>
+                {canShare ? (
+                  <button className="primary big" onClick={() => void share()}>
+                    Compartilhar minha tela
+                  </button>
+                ) : (
+                  <p className="muted">Este navegador só assiste. Para compartilhar, use o Chrome ou o Edge no PC.</p>
+                )}
+              </div>
+            )}
+            {/* as TVs ficam sempre neste mesmo lugar da árvore: trocar entre grade e mesa só muda a classe, sem remontar o vídeo */}
+            <div
+              data-tour={tableMode ? undefined : 'stage'}
+              className={tableMode ? `tv-layer ${hiTile ? 'has-hi' : ''}` : `grid n${Math.min(shown.length, 4)}`}
+            >
+              {shown.map((t, i) => {
+                const leaving = !tiles.some((x) => x.id === t.id)
+                const peer = t.local ? undefined : peerById(t.id)
+                const who = peer?.name ?? t.label
+                return (
+                  <VideoTile
+                    key={t.id}
+                    id={t.id}
+                    stream={t.stream}
+                    name={who}
+                    local={t.local}
+                    leaving={leaving}
+                    volume={t.local ? 1 : vol('screen', who)}
+                    onVolume={t.local ? undefined : (v) => setVol('screen', who, v)}
+                    sinkId={effectiveSink}
+                    badge={showStats && peer ? routeInfo(peer) : undefined}
+                    table={tableFor(t.id, i)}
+                    onSelect={tableMode ? () => setHi((h) => (h === t.id ? null : t.id)) : undefined}
+                    control={
+                      t.local || leaving
+                        ? undefined
+                        : {
+                            state: control.controller.phase !== 'idle' && control.controller.peer === t.id ? control.controller.phase : 'idle',
+                            canRequest: control.controller.phase === 'idle',
+                            onRequest: () => control.requestControl(t.id),
+                            onRelease: control.release,
+                            onInput: control.sendInput
+                          }
+                    }
+                  />
+                )
+              })}
+            </div>
           </div>
+          {tableMode && view && (
+            <Suspense fallback={null}>
+              <PokerHudLazy
+                view={view}
+                me={game.me}
+                canManage={!!game.lobby?.canManage}
+                onAct={gameApi.act}
+                onPlayAgain={() => {
+                  const options = view.options
+                  gameApi.close()
+                  gameApi.open(options)
+                }}
+                onCloseTable={gameApi.close}
+                onBackToScreens={() => setShowTable(false)}
+                musicOn={musicOn}
+                musicVolume={musicVolume}
+                onMusicOn={toggleMusic}
+                onMusicVolume={changeMusicVolume}
+                handsOpen={handsOpen}
+                onHands={setHandsOpen}
+              />
+            </Suspense>
+          )}
+        </div>
+
+        {inviteVisible && game.lobby && (
+          <GameInvite
+            openedBy={game.lobby.openedBy}
+            onSit={() => {
+              gameApi.sit()
+              setPanelOpen(true)
+            }}
+            onLater={() => setDismissedFor(game.lobby?.openedBy ?? null)}
+          />
         )}
 
         <footer className="controls">
@@ -581,6 +782,11 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
             />
           )}
 
+          <button className="ctl games" data-tour="games" onClick={() => setPanelOpen(true)} aria-haspopup="dialog">
+            <Icon name="cards" size={20} />
+            <span className="lbl">Jogos</span>
+            {game.lobby && <i className="dot" role="img" aria-label="mesa aberta" />}
+          </button>
           <button
             data-tour="sounds"
             className={`icon-btn ${soundsOn ? 'on' : ''}`}
@@ -612,6 +818,31 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
           </button>
         </footer>
       </main>
+
+      {panelOpen && (
+        <GamesPanel
+          lobby={game.lobby}
+          hasView={hasView}
+          api={gameApi}
+          onClose={() => setPanelOpen(false)}
+          onShowTable={() => setShowTable(true)}
+        />
+      )}
+      {game.lobby && (
+        <GameAudioDriver
+          seated={seated}
+          started={game.lobby.started}
+          lastEvents={game.lastEvents}
+          soundsOn={soundsOn}
+          musicOn={musicOn}
+          musicVolume={musicVolume}
+          inviteSeq={inviteSeq}
+          mics={[
+            { id: 'me', stream: state.micStream, muted: micMuted },
+            ...state.peers.map((p) => ({ id: p.id, stream: p.mic, muted: p.state.micMuted }))
+          ]}
+        />
+      )}
 
       {askTour && !tourBusy && <TourPrompt onYes={runTour} onClose={() => setAskTour(false)} />}
 

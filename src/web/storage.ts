@@ -58,6 +58,17 @@ export const setHelperToken = (token: string | undefined): void => {
   }
 }
 
+/** Identidade estável desta pessoa neste navegador: recupera a cadeira do jogo ao reconectar. */
+export function clientId(): string {
+  const saved = load('clientId')
+  if (/^[A-Za-z0-9_-]{8,64}$/.test(saved)) return saved
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  const id = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
+  save('clientId', id)
+  return id
+}
+
 // ---------- preferências ----------
 
 export interface Prefs {
@@ -78,6 +89,9 @@ export interface Prefs {
   tourAnswer: 'ask' | 'yes' | 'no'
   /** versão do tour da Home já vista */
   homeTourDone: number
+  /** música da mesa de jogo e o volume dela (0..1) */
+  musicOn: boolean
+  musicVolume: number
 }
 
 const DEFAULT_PREFS: Prefs = {
@@ -91,7 +105,9 @@ const DEFAULT_PREFS: Prefs = {
   sounds: true,
   tourDone: 0,
   tourAnswer: 'ask',
-  homeTourDone: 0
+  homeTourDone: 0,
+  musicOn: true,
+  musicVolume: 0.35
 }
 
 // compatibilidade com a chave antiga de aprovação

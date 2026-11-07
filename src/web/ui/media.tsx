@@ -109,6 +109,10 @@ interface TileProps {
   /** texto de rota/bitrate (só com estatísticas ligadas) */
   badge?: string
   control?: TileControl
+  /** a mesa do jogo posiciona esta TV: no buraco da parede, em destaque, numa faixa ou escondida (o som continua) */
+  table?: { mode: 'rect' | 'hi' | 'strip' | 'parked'; style?: CSSProperties }
+  /** clique simples na TV (a mesa usa para pôr em destaque) */
+  onSelect?: () => void
 }
 
 const IDLE_MS = 2500
@@ -123,7 +127,9 @@ export function VideoTile({
   sinkId,
   leaving,
   badge,
-  control
+  control,
+  table,
+  onSelect
 }: TileProps) {
   const ref = useRef<HTMLVideoElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -174,12 +180,18 @@ export function VideoTile({
   const who = local ? 'Você está compartilhando' : `${name} está compartilhando`
 
   return (
-    <figure className={`cell ${leaving ? 'leaving' : ''}`}>
+    <figure
+      className={`cell ${leaving ? 'leaving' : ''} ${table ? `table-${table.mode}` : ''} ${table?.mode === 'rect' ? 'bare' : ''}`}
+      style={table?.style}
+    >
       <div
         ref={boxRef}
         data-tile-id={id}
         tabIndex={leaving ? -1 : 0}
         className={`tile ${full ? 'full' : ''} ${idle ? 'idle' : ''} ${controlling ? 'controlling' : ''}`}
+        onClick={() => {
+          if (!controlling) onSelect?.()
+        }}
         onDoubleClick={() => {
           if (!controlling) toggleFullscreen(boxRef.current)
         }}

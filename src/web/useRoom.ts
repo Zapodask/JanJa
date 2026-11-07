@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { INITIAL_STATE, type PeerState } from '../shared/protocol'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import type { PokerAction, PokerOptions } from '../shared/games/poker/types'
+import { INITIAL_STATE, type ClientMessage, type PeerState } from '../shared/protocol'
+import { gameReducer, initialGameState, isGameMsg } from './game/state'
 import { PeerManager, type PeerView } from './rtc/PeerManager'
 import { applyQuality, captureConstraints, presetById, type QualityPreset } from './rtc/quality'
 import { SignalingClient } from './signaling'
@@ -95,6 +97,13 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
   const mountedRef = useRef(false)
   const [attempt, setAttempt] = useState(0)
 
+  // jogo da sala: o estado vem do servidor; a ação leva o seq da última visão
+  const [game, dispatchGame] = useReducer(gameReducer, initialGameState)
+  const [gameError, setGameError] = useState<{ code: string; message: string; n: number } | null>(null)
+  const gameRef = useRef(game)
+  gameRef.current = game
+  const gameErrors = useRef(0)
+
   const patch = useCallback((p: Partial<RoomState>) => setState((s) => ({ ...s, ...p })), [])
 
   const publishState = useCallback(
@@ -148,6 +157,7 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
     const signaling = new SignalingClient({ roomId, name, hostKey })
     signalingRef.current = signaling
     patch({ status: 'conectando', error: undefined, peers: [], requests: [] })
+    dispatchGame({ type: 'reset' })
 
     void (async () => {
       // microfone preguiçoso: se a última escolha foi mudo, nem pede permissão agora
@@ -193,6 +203,14 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
               break
             case 'join-request-cancelled':
               setState((s) => ({ ...s, requests: s.requests.filter((r) => r.requestId !== msg.requestId) }))
+              break
+            case 'game-lobby':
+            case 'game-view':
+            case 'game-events':
+              if (isGameMsg(msg)) dispatchGame(msg)
+              break
+            case 'game-error':
+              setGameError({ code: msg.code, message: msg.message, n: ++gameErrors.current })
               break
             case 'error':
               console.warn('[signaling]', msg.code, msg.message)
@@ -285,5 +303,18 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
 
   const reconnect = useCallback(() => setAttempt((n) => n + 1), [])
 
-  return { state, toggleMic, startShare, stopShare, setPreset, answerRequest, reconnect }
+  const send = useCallback((msg: ClientMessage) => signalingRef.current?.send(msg), [])
+  const gameApi = useMemo(
+    () => ({
+      open: (options: PokerOptions) => send({ type: 'game-open', gameId: 'poker', options }),
+      sit: (seat?: number) => send({ type: 'game-sit', seat }),
+      stand: () => send({ type: 'game-stand' }),
+      start: () => send({ type: 'game-start' }),
+      close: () => send({ type: 'game-close' }),
+      act: (action: PokerAction) => send({ type: 'game-action', seq: gameRef.current.viewSeq, action })
+    }),
+    [send]
+  )
+
+  return { state, toggleMic, startShare, stopShare, setPreset, answerRequest, reconnect, game, gameApi, gameError }
 }
