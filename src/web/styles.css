@@ -515,9 +515,9 @@ button.link:hover:not(:disabled) { --fg: var(--paper); }
 .cams-faixa .cam-tile { flex: none; height: clamp(88px, 14vh, 140px); }
 
 /* na mesa: no canto de cima, por cima da parede */
-.cams-flutuante { position: absolute; top: 8px; right: 8px; z-index: 6; flex-direction: column; gap: 6px; max-height: calc(100% - 16px); overflow-y: auto; scrollbar-width: none; pointer-events: none; }
-.cams-flutuante .cam-tile { flex: none; width: clamp(120px, 13vw, 200px); border-width: 2px; pointer-events: auto; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); }
-.cams-flutuante .cam-tile figcaption { font-size: 12px; }
+.cams-flutuante { position: absolute; top: 8px; right: 8px; z-index: 6; flex-direction: row; gap: 6px; max-width: 46%; overflow-x: auto; scrollbar-width: none; pointer-events: none; }
+.cams-flutuante .cam-tile { flex: none; width: clamp(96px, 8.5vw, 150px); border-width: 2px; pointer-events: auto; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); }
+.cams-flutuante .cam-tile figcaption { font-size: 11px; left: 4px; bottom: 4px; padding: 0 6px; line-height: 18px; }
 
 .ctl.cam.is-live { --fg: var(--on); }
 

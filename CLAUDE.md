@@ -1,0 +1,89 @@
+# CLAUDE.md
+
+Guia para quem (humano ou IA) for mexer no JanJa. Leia antes de mudar código.
+
+## O que é
+
+Site para amigos compartilharem tela, voz e câmera e jogarem poker juntos, direto do navegador. React 19 + Vite + TypeScript estrito no front; Cloudflare Worker com um Durable Object por sala (`Room`, Hibernation API, SQLite) no back. A mídia vai P2P em mesh WebRTC; o servidor só faz sinalização e roda os jogos. Há também o **JanJa Helper** (`helper/`, Rust, Windows) para controle remoto.
+
+Produção: https://janja.spotlightre.workers.dev (deploy automático da Cloudflare a cada push na `main`).
+
+## Comandos
+
+```bash
+npm run dev               # build + wrangler dev em http://localhost:8787
+npx vite                  # só o front (rotas de laboratório /dev/poker e /dev/audio)
+npm run typecheck         # 3 tsconfigs: web, worker, testes
+npm test                  # vitest (ambiente node)
+npm run test:e2e          # Chrome de verdade contra o wrangler dev
+npm run sprites           # regenera public/game/sprites.{png,json} a partir de src/web/game/art
+npm run validate-commits  # confere a mensagem do último commit
+cd helper && cargo test   # helper (em Linux a injeção de input é um stub)
+```
+
+Antes de entregar qualquer mudança: `npm run typecheck && npm test && npx vite build`.
+
+## Mapa
+
+| Onde | O quê |
+|---|---|
+| `src/shared/protocol.ts` | mensagens cliente/servidor (zod), `PeerState`, `MAX_PEERS = 5` |
+| `src/shared/control.ts` | protocolo do controle remoto (canal de dados id 7) |
+| `src/shared/games/` | plataforma de jogos (`types.ts`, `protocol.ts`, `registry.ts`) e o poker (`poker/engine.ts`, `evaluate.ts`, `describe.ts`) |
+| `src/worker/index.ts` | rotas e o Durable Object; **um único alarme** = o menor entre o prazo do jogo e o TTL da sala vazia |
+| `src/worker/core.ts` | regras da sala sem Cloudflare (testável); delega `game-*` para `game/host.ts` |
+| `src/web/rtc/PeerManager.ts` | mesh com perfect negotiation, codecs, bitrate, estatísticas, watchdog de ICE |
+| `src/web/useRoom.ts` | estado da sala, mic, tela (`getDisplayMedia`) e câmera |
+| `src/web/ui/Room.tsx` | a sala: barra lateral, palco, câmeras, mesa, barra de baixo, atalhos |
+| `src/web/ui/Cams.tsx` | webcams (palco, faixa, flutuante) e a câmera maximizada |
+| `src/web/game/scene/` | cena da mesa em PixiJS 8 (`engine.ts`), geometria (`layout.ts`), fila de animações (`plan.ts`) |
+| `src/web/game/art/` | toda a pixel art, desenhada em código |
+| `src/web/game/audio/` | música chiptune (sequenciador próprio) e efeitos |
+| `src/web/storage.ts` | preferências no `localStorage` (mic, volumes, qualidade, música, tour...) |
+| `src/web/ui/tourLogic.ts` | passos do tour (driver.js); o teste confere a quantidade |
+| `scripts/commit-rules.ts` | tipos e escopos aceitos nos commits |
+
+## Regras de produto e de texto
+
+- Todo texto de interface em **português do Brasil**, frases curtas e simples. Sem CAIXA ALTA, sem setas "→", sem jargão.
+- Visual "a TV da sala": fundo café `#221C19`, abajur `#FFC94A`, papel `#F3EBDD`, poeira `#B7A99A`; fontes Archivo (interface) e Pixelify Sans (pixel). Tokens em `src/web/styles.css` (`:root`). Nada de gradiente chamativo nem cara de template.
+- Pixel art é sempre gerada por código (`src/web/game/art`, `src/web/ui/pixelData.ts`). Não adicione imagens prontas.
+- Mic começa **mudo** e a câmera começa **desligada**. Escolhas da pessoa vão para `storage.ts`.
+- Erros para a pessoa dizem o que fazer ("Libere no cadeado da barra de endereço"), nunca só o nome técnico.
+
+## Restrições técnicas que já morderam
+
+- **CSP** em `public/_headers`: sem `eval`, sem worker de `blob:`, conexões só para `'self'`, `wss:` e `ws://127.0.0.1:47800` (helper). Por isso:
+  - o Pixi importa `pixi.js/unsafe-eval` primeiro e usa `Assets.setPreferences({ preferWorkers: false })`;
+  - qualquer lib nova precisa funcionar com essa CSP (teste no build servido pelo wrangler, não só no `vite`).
+- **Pixi só no chunk da mesa.** A cena e o áudio do jogo carregam por `import()` em `src/web/game/loaders.ts`. Não importe `pixi.js` nem `gsap` fora de `src/web/game/scene` e `audio`.
+- **Tela x câmera x mic no receptor** são separados pelo `PeerState`: `screenStreamId` e `camStreamId`. Publique o estado **antes** de adicionar a trilha (`publishState` e depois `manager.startX`), senão o vídeo chega sem classificação.
+- **Jogos são puros.** Motor recebe `GameCtx { now, rng }`; nunca use `Date.now()` ou `Math.random()` dentro de `src/shared/games`. Cada conexão recebe só a própria `view`: nunca coloque cartas de outra pessoa na visão fora do showdown.
+- **Uma sala tem no máximo 5 pessoas** (`MAX_PEERS`); o poker aceita até 8, então na prática são 5.
+- Mudou a arte? Rode `npm run sprites` e versione `public/game/sprites.*`.
+
+## Pegadinhas de UI conhecidas
+
+- **Não coloque o `Dropdown` dentro de `<label>`**: o clique na opção é repassado ao botão e a lista reabre. Use `<div>`.
+- **Classes CSS curtas colidem.** `.cam` é o botão da barra; o quadro de câmera é `.cam-tile`. O estado do mic é `.is-muted`/`.is-live` (não `.muted`, que é texto apagado).
+- Botões são estilizados por variáveis (`--bg`, `--bg-h`, `--bd`, `--bd-h`, `--fg`). Para um botão novo, troque as variáveis em vez de sobrescrever `background`, senão o hover quebra.
+- Texto dentro do canvas do poker usa `PxText` em alta resolução (`TEXT_RES`); posições continuam em pixels da cena.
+- A barra de baixo encolhe rótulos com `@container` antes de quebrar linha; botão novo na barra precisa caber em 1440 px com a barra lateral aberta.
+
+## Testes e verificação visual
+
+- Unitários em `tests/` (vitest, ambiente node). Regras de mãos são comparadas com `pokersolver` (devDependency, só oráculo de teste).
+- Headless (puppeteer-core + `/usr/bin/google-chrome`): o canvas WebGL sai em branco em screenshot. Defina `localStorage['janja.debug.renderer'] = 'canvas'` para o Pixi usar Canvas2D.
+- Flags úteis: `--use-fake-ui-for-media-stream --use-fake-device-for-media-stream --autoplay-policy=no-user-gesture-required`; substitua `navigator.mediaDevices.getDisplayMedia` por `getUserMedia` para simular a tela.
+- `/dev/poker` (laboratório da mesa, com `window.__lab.newHand()`, `flop()`, `showdown()`...) e `/dev/audio` só existem com `npx vite` (modo dev); não entram no build.
+
+## Commits
+
+Padrão `tipo(escopo): descrição` em português, sem ponto final, título até 72 caracteres. Tipos: `feat fix test refactor style perf docs build ci chore revert`. Escopos: `sala tela camera audio controle helper jogos poker tour jan ui worker deps release`. Detalhes em `docs/COMMITS.md`. O hook `.githooks/commit-msg` e o workflow `commits` recusam mensagens fora do padrão. Escopo novo: atualize `scripts/commit-rules.ts` e a tabela do doc no mesmo commit.
+
+## Fluxo de trabalho
+
+- O Pedro roda `git`, `npm install` e o push no PC dele (Windows, Git Bash ou PowerShell). Dê os comandos prontos.
+- Arquivos em `.github/workflows/` às vezes precisam ser copiados à mão para o lugar certo; confira se chegaram ao GitHub.
+- Release do helper: tag `helper-vX.Y.Z` dispara `.github/workflows/helper.yml`, que publica o `.exe` e o `.sha256`. As origens liberadas por padrão ficam em `helper/src/config.rs` (`DEFAULT_ORIGINS`).
+- Mudanças grandes: planeje primeiro (contratos de tipos, divisão em partes), implemente, rode a verificação completa e só então entregue.
