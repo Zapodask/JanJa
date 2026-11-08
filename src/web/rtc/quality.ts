@@ -22,6 +22,22 @@ export const PRESETS: QualityPreset[] = [
   { id: 'jogo60', label: 'Jogo fluido (até 1080p, 60 fps)', width: 1920, height: 1080, fps: 60, bitrate: 12_000_000, hint: 'motion' }
 ]
 
+/**
+ * Modo automático: a qualidade se ajusta sozinha (veja autoQuality.ts). Estes números só servem para a captura
+ * (pede até 60 fps) e para estimativas; o preset de verdade é montado do nível atual.
+ */
+export const AUTO_PRESET: QualityPreset = {
+  id: 'auto',
+  label: 'Automático (se ajusta à internet)',
+  width: 1920,
+  height: 1080,
+  fps: 60,
+  bitrate: 5_000_000,
+  hint: 'motion'
+}
+
+export const isAuto = (p: QualityPreset): boolean => p.id === 'auto'
+
 /** Pedido inicial ao navegador: só o fps; a tela vem no tamanho nativo e depois é reduzida por fitConstraints. */
 export function captureConstraints(preset: QualityPreset): MediaTrackConstraints {
   return { frameRate: { ideal: preset.fps, max: preset.fps } }
@@ -86,6 +102,7 @@ export function pixelScale(preset: QualityPreset, width?: number, height?: numbe
 export const DEFAULT_PRESET = PRESETS[2]
 
 export function presetById(id: string): QualityPreset {
+  if (id === 'auto') return AUTO_PRESET
   return PRESETS.find((p) => p.id === id) ?? DEFAULT_PRESET
 }
 

@@ -1,17 +1,12 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { PokerAction, PokerOptions } from '../shared/games/poker/types'
-import {
-  DEFAULT_CHANNELS,
-  INITIAL_STATE,
-  type ChatMessage,
-  type ClientMessage,
-  type PeerInfo,
-  type PeerState,
-  type RoomSettings
-} from '../shared/protocol'
+import { INITIAL_STATE, type ClientMessage, type PeerState } from '../shared/protocol'
 import { gameReducer, initialGameState, isGameMsg } from './game/state'
+import { AUTO_START, autoLevelPreset } from './rtc/autoQuality'
+import type { DiagEvent, SendDiag } from './rtc/diag'
 import { PeerManager, type PeerView } from './rtc/PeerManager'
-import { applyQuality, captureConstraints, presetById, type QualityPreset } from './rtc/quality'
+import { applyQuality, captureConstraints, isAuto, presetById, type QualityPreset } from './rtc/quality'
+import type { SendSummary } from './rtc/stats'
 import { SignalingClient } from './signaling'
 import { getPrefs, setPrefs } from './storage'
 
@@ -27,18 +22,7 @@ export interface RoomState {
   error?: string
   selfId?: string
   isHost: boolean
-  /** conexões de mídia: só quem está no mesmo canal */
   peers: PeerView[]
-  /** todo mundo na sala (menos você), de todos os canais */
-  roster: PeerInfo[]
-  /** canais e limite de pessoas, definidos por quem criou a sala */
-  settings: RoomSettings
-  /** o canal onde você está */
-  channelId?: string
-  /** chat do seu canal (histórico + ao vivo) */
-  chat: ChatMessage[]
-  /** quantas mensagens de outras pessoas chegaram ao vivo (a UI conta as não lidas por aqui) */
-  chatLive: number
   me: PeerState
   screen?: MediaStream
   preset: QualityPreset
@@ -55,6 +39,41 @@ export interface RoomState {
   cameraPending?: boolean
   /** a malha WebRTC da sala atual (o controle remoto usa o canal "control" dela) */
   manager?: PeerManager
+  /** diário de eventos da conexão, do mais antigo para o mais novo (até LOG_SIZE) */
+  diagLog: DiagEvent[]
+  /** o que eu estou enviando; undefined quando não compartilho */
+  sendDiag?: SendDiag
+}
+
+/** No máximo uma publicação do resumo de envio a cada 4 s. */
+const SEND_PUBLISH_GAP_MS = 4000
+
+const fpsBand = (fps?: number): number => (fps === undefined ? -1 : fps >= 50 ? 2 : fps >= 24 ? 1 : 0)
+
+/** Resumo de envio para os outros: limite dominante entre os espectadores, nível e altura. */
+function summarizeSend(d: SendDiag): SendSummary {
+  const outs = d.viewers.map((v) => v.out).filter((o): o is NonNullable<typeof o> => !!o)
+  const lim = outs.some((o) => o.limitation === 'cpu')
+    ? 'cpu'
+    : outs.some((o) => o.limitation === 'bandwidth')
+      ? 'bandwidth'
+      : outs.some((o) => o.limitation === 'other')
+        ? 'other'
+        : 'none'
+  const first = outs[0]
+  const fps = outs.length ? Math.max(...outs.map((o) => o.fps ?? 0)) : undefined
+  return {
+    lim,
+    ...(fps !== undefined ? { fps: Math.round(fps) } : {}),
+    ...(first?.height ? { h: first.height } : {}),
+    ...(d.mode === 'auto' ? { lvl: d.levelLabel } : {})
+  }
+}
+
+/** Mudou o suficiente para valer uma publicação? (limite, nível ou faixa de fps) */
+function sendChanged(a: SendSummary | undefined, b: SendSummary | undefined): boolean {
+  if (!a || !b) return a !== b
+  return a.lim !== b.lim || a.lvl !== b.lvl || fpsBand(a.fps) !== fpsBand(b.fps)
 }
 
 const MIC_CONSTRAINTS: MediaTrackConstraints = {
@@ -62,9 +81,6 @@ const MIC_CONSTRAINTS: MediaTrackConstraints = {
   noiseSuppression: true,
   autoGainControl: true
 }
-
-/** mensagens de chat mantidas na tela (o servidor guarda só as últimas 50) */
-const MAX_CHAT_KEPT = 200
 
 const hasGetUserMedia = (): boolean => typeof navigator.mediaDevices?.getUserMedia === 'function'
 
@@ -105,23 +121,21 @@ export const canShareScreen = (): boolean =>
 
 /**
  * Pede a tela ao navegador. O seletor é o nativo: telas, janelas e abas.
- * - systemAudio: oferece "compartilhar áudio do sistema" ao escolher a tela inteira (Chrome/Edge no Windows e no macOS recente)
- * - windowAudio 'window': ao escolher a janela de um programa (ex.: um jogo), vai só o som dela, não o do PC inteiro
- * - restrictOwnAudio: tira do áudio capturado o som que o próprio JanJa toca (a voz dos amigos), para não ter eco.
- *   No Windows o Chrome/Edge tiram o som do navegador inteiro, então `browserAudio` permite desligar isso.
+ * - systemAudio: oferece "compartilhar áudio do sistema" (Chrome/Edge no Windows e no macOS recente)
+ * - restrictOwnAudio: tira do áudio capturado o som que o próprio JanJa toca (a voz dos amigos) → sem eco
  */
-async function captureScreen(preset: QualityPreset, browserAudio: boolean): Promise<MediaStream> {
+async function captureScreen(preset: QualityPreset): Promise<MediaStream> {
   const audio = {
     echoCancellation: false,
     noiseSuppression: false,
     autoGainControl: false,
-    restrictOwnAudio: !browserAudio
+    restrictOwnAudio: true
   } as MediaTrackConstraints
   const options = {
     video: captureConstraints(preset),
     audio,
     systemAudio: 'include',
-    windowAudio: 'window',
+    windowAudio: 'system',
     selfBrowserSurface: 'exclude',
     surfaceSwitching: 'include'
   } as DisplayMediaStreamOptions
@@ -133,15 +147,12 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
     status: 'conectando',
     isHost: false,
     peers: [],
-    roster: [],
-    chat: [],
-    chatLive: 0,
-    settings: { name: '', channels: DEFAULT_CHANNELS },
     // mic começa mudo, salvo se a pessoa já escolheu ligar da última vez
     me: { ...INITIAL_STATE, micMuted: getPrefs().micMuted },
     preset: presetById(getPrefs().presetId),
     micAvailable: hasGetUserMedia(),
-    requests: []
+    requests: [],
+    diagLog: []
   })
   const signalingRef = useRef<SignalingClient>(undefined)
   const managerRef = useRef<PeerManager>(undefined)
@@ -149,9 +160,8 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
   const meRef = useRef<PeerState>({ ...INITIAL_STATE, micMuted: getPrefs().micMuted })
   const micPendingRef = useRef<Promise<MediaStream | undefined>>(undefined)
   const camRef = useRef<MediaStream>(undefined)
-  /** último canal (sobrevive à reconexão: o servidor devolve a pessoa para ele) */
-  const channelRef = useRef<string>(undefined)
   const mountedRef = useRef(false)
+  const lastSendPublishRef = useRef(0)
   const [attempt, setAttempt] = useState(0)
 
   // jogo da sala: o estado vem do servidor; a ação leva o seq da última visão
@@ -160,8 +170,6 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
   const gameRef = useRef(game)
   gameRef.current = game
   const gameErrors = useRef(0)
-  const [roomNotice, setRoomNotice] = useState<{ message: string; n: number } | null>(null)
-  const roomNotices = useRef(0)
 
   const patch = useCallback((p: Partial<RoomState>) => setState((s) => ({ ...s, ...p })), [])
 
@@ -172,6 +180,22 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
       patch({ me: meRef.current })
     },
     [patch]
+  )
+
+  /** Publica o resumo de envio quando muda (no máx. a cada 4 s); some ao parar de compartilhar. */
+  const publishSend = useCallback(
+    (diag: SendDiag | undefined) => {
+      if (!meRef.current.sharing || !diag) {
+        if (meRef.current.send) publishState({ send: undefined })
+        return
+      }
+      const next = summarizeSend(diag)
+      const now = performance.now()
+      if (!sendChanged(meRef.current.send, next) || now - lastSendPublishRef.current < SEND_PUBLISH_GAP_MS) return
+      lastSendPublishRef.current = now
+      publishState({ send: next })
+    },
+    [publishState]
   )
 
   /** Pede o mic (ou reaproveita o que está vivo). Em caso de falha preenche micError e devolve undefined. */
@@ -215,9 +239,9 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
 
   useEffect(() => {
     let disposed = false
-    const signaling = new SignalingClient({ roomId, name, hostKey, channelId: channelRef.current })
+    const signaling = new SignalingClient({ roomId, name, hostKey })
     signalingRef.current = signaling
-    patch({ status: 'conectando', error: undefined, peers: [], roster: [], chat: [], requests: [] })
+    patch({ status: 'conectando', error: undefined, peers: [], requests: [] })
     dispatchGame({ type: 'reset' })
 
     void (async () => {
@@ -238,79 +262,36 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
         if (disposed) return signaling.close()
         const manager = new PeerManager(signaling, welcome.peerId, welcome.iceServers)
         managerRef.current = manager
-        manager.onChange(() => !disposed && patch({ peers: manager.views() }))
+        manager.onChange(() => {
+          if (disposed) return
+          const sendDiag = manager.sendDiag()
+          patch({ peers: manager.views(), sendDiag })
+          publishSend(sendDiag)
+        })
+        manager.log.onChange(() => !disposed && patch({ diagLog: manager.log.list() }))
         manager.setMic(micRef.current)
         // reconexão com a câmera ligada: ela continua indo para todo mundo
         if (camRef.current?.getVideoTracks().some((t) => t.readyState === 'live')) manager.startCamera(camRef.current)
         else if (meRef.current.camStreamId) meRef.current = { ...meRef.current, camStreamId: undefined }
 
-        // lista de todos na sala (de qualquer canal); a mídia só liga quem está no mesmo canal
-        const roster = new Map(welcome.peers.map((p) => [p.peerId, p]))
-        let channel = welcome.channelId
-        channelRef.current = channel
-        const syncRoster = () => !disposed && patch({ roster: [...roster.values()], channelId: channel })
-
-        // quem entra (ou chega no canal) inicia a conexão com todos que já estão nele
+        // quem entra inicia a conexão com todos que já estão na sala
         // (antes de assinar as mensagens, para os sinais guardados acharem o peer)
-        for (const peer of roster.values()) if (peer.channelId === channel) manager.addPeer(peer, true)
+        for (const peer of welcome.peers) manager.addPeer(peer, true)
 
         signaling.on((msg) => {
           switch (msg.type) {
             case 'peer-joined':
-              roster.set(msg.peer.peerId, msg.peer)
-              if (msg.peer.channelId === channel) manager.addPeer(msg.peer, false)
-              syncRoster()
+              manager.addPeer(msg.peer, false)
               break
             case 'peer-left':
-              roster.delete(msg.peerId)
               manager.removePeer(msg.peerId)
-              syncRoster()
-              break
-            case 'peer-moved': {
-              if (msg.peerId === welcome.peerId) {
-                // eu troquei de canal: desliga o canal antigo e liga com quem está no novo
-                if (msg.channelId === channel) break
-                channel = msg.channelId
-                channelRef.current = channel
-                for (const view of manager.views()) manager.removePeer(view.id)
-                for (const peer of roster.values()) if (peer.channelId === channel) manager.addPeer(peer, true)
-              } else {
-                const peer = roster.get(msg.peerId)
-                if (!peer) break
-                const moved = { ...peer, channelId: msg.channelId }
-                roster.set(msg.peerId, moved)
-                if (msg.channelId === channel) manager.addPeer(moved, false)
-                else manager.removePeer(msg.peerId)
-              }
-              syncRoster()
-              break
-            }
-            case 'room-settings':
-              patch({ settings: msg.settings })
-              break
-            case 'chat-history':
-              if (msg.channelId === channel && !disposed) patch({ chat: msg.messages })
-              break
-            case 'chat':
-              if (msg.channelId === channel && !disposed) {
-                const fromOther = msg.message.from !== welcome.peerId
-                setState((s) => ({
-                  ...s,
-                  chat: [...s.chat, msg.message].slice(-MAX_CHAT_KEPT),
-                  chatLive: s.chatLive + (fromOther ? 1 : 0)
-                }))
-              }
               break
             case 'signal':
               void manager.handleSignal(msg.from, msg.payload)
               break
-            case 'state': {
-              const peer = roster.get(msg.from)
-              if (peer) roster.set(msg.from, { ...peer, state: msg.state })
+            case 'state':
               manager.setRemoteState(msg.from, msg.state)
-              syncRoster()
               break
-            }
             case 'join-request':
               setState((s) => ({ ...s, requests: [...s.requests, { requestId: msg.requestId, name: msg.name }] }))
               break
@@ -326,16 +307,7 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
               setGameError({ code: msg.code, message: msg.message, n: ++gameErrors.current })
               break
             case 'error':
-              // erros de canal viram aviso para a pessoa; o resto só vai para o console
-              if (
-                msg.code === 'not-host' ||
-                msg.code === 'unknown-channel' ||
-                msg.code === 'channel-limit' ||
-                msg.code === 'channel-full' ||
-                msg.code === 'chat-flood'
-              ) {
-                setRoomNotice({ message: msg.message, n: ++roomNotices.current })
-              } else console.warn('[signaling]', msg.code, msg.message)
+              console.warn('[signaling]', msg.code, msg.message)
               break
           }
         })
@@ -349,9 +321,8 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
           me: meRef.current,
           micStream: micRef.current,
           peers: manager.views(),
-          roster: [...roster.values()],
-          channelId: channel,
-          settings: welcome.settings,
+          diagLog: manager.log.list(),
+          sendDiag: manager.sendDiag(),
           manager
         })
       } catch (err) {
@@ -364,10 +335,10 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
       managerRef.current?.dispose()
       managerRef.current = undefined
       signaling.close()
-      meRef.current = { ...meRef.current, sharing: false, screenStreamId: undefined }
-      setState((s) => ({ ...s, screen: undefined, me: meRef.current, manager: undefined }))
+      meRef.current = { ...meRef.current, sharing: false, screenStreamId: undefined, send: undefined }
+      setState((s) => ({ ...s, screen: undefined, sendDiag: undefined, me: meRef.current, manager: undefined }))
     }
-  }, [roomId, name, hostKey, attempt, patch, acquireMic])
+  }, [roomId, name, hostKey, attempt, patch, acquireMic, publishSend])
 
   const toggleMic = useCallback(async () => {
     if (!meRef.current.micMuted) {
@@ -426,25 +397,30 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
   }, [patch, publishState, stopCamera])
 
   const stopShare = useCallback(() => {
-    managerRef.current?.stopScreen()
-    publishState({ sharing: false, screenStreamId: undefined })
-    patch({ screen: undefined })
+    const manager = managerRef.current
+    if (manager && meRef.current.sharing) manager.log.push({ kind: 'tela', text: 'Você parou de compartilhar a tela' })
+    manager?.stopScreen()
+    publishState({ sharing: false, screenStreamId: undefined, send: undefined })
+    patch({ screen: undefined, sendDiag: undefined })
   }, [patch, publishState])
 
   const startShare = useCallback(
     async (preset: QualityPreset) => {
-      const stream = await captureScreen(preset, getPrefs().shareBrowserAudio)
+      const stream = await captureScreen(preset)
       const video = stream.getVideoTracks()[0]
       if (video) {
         // veio no tamanho nativo: reduz para o preset mantendo a proporção (ultrawide continua 21:9)
-        await applyQuality(video, preset)
+        // no automático começa no nível inicial; o PeerManager decide o resto
+        await applyQuality(video, isAuto(preset) ? autoLevelPreset(AUTO_START) : preset)
         video.addEventListener('ended', () => stopShare(), { once: true })
       }
       // anuncia antes das tracks chegarem, para o receptor classificar o áudio da tela
       publishState({ sharing: true, screenStreamId: stream.id })
+      lastSendPublishRef.current = 0
       managerRef.current?.startScreen(stream, preset)
+      managerRef.current?.log.push({ kind: 'tela', text: 'Você começou a compartilhar a tela' })
       setPrefs({ presetId: preset.id })
-      patch({ screen: stream, preset })
+      patch({ screen: stream, preset, sendDiag: managerRef.current?.sendDiag() })
       return { hasAudio: stream.getAudioTracks().length > 0 }
     },
     [patch, publishState, stopShare]
@@ -479,32 +455,5 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
     [send]
   )
 
-  const roomApi = useMemo(
-    () => ({
-      joinChannel: (channelId: string) => send({ type: 'channel-join', channelId }),
-      sendChat: (text: string) => send({ type: 'chat-send', text }),
-      createChannel: (name: string, limit: number) => send({ type: 'channel-create', name, limit }),
-      editChannel: (channelId: string, name: string, limit: number) => send({ type: 'channel-edit', channelId, name, limit }),
-      deleteChannel: (channelId: string) => send({ type: 'channel-delete', channelId }),
-      renameRoom: (name: string) => send({ type: 'room-rename', name })
-    }),
-    [send]
-  )
-
-  return {
-    state,
-    toggleMic,
-    startShare,
-    stopShare,
-    startCamera,
-    stopCamera,
-    setPreset,
-    answerRequest,
-    reconnect,
-    game,
-    gameApi,
-    gameError,
-    roomApi,
-    roomNotice
-  }
+  return { state, toggleMic, startShare, stopShare, startCamera, stopCamera, setPreset, answerRequest, reconnect, game, gameApi, gameError }
 }
