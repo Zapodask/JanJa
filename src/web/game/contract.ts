@@ -9,6 +9,10 @@ import type { CheckersView } from '../../shared/games/checkers/types'
 import type { ChessView, Promo } from '../../shared/games/chess/types'
 import type { GolfView } from '../../shared/games/golf/types'
 import type { PokerEvent, PokerView } from '../../shared/games/poker/types'
+import type { Cell, Placement } from '../../shared/games/naval/fleet'
+import type { NavalView } from '../../shared/games/naval/types'
+import type { MysteryAction, MysteryView } from '../../shared/games/mystery/types'
+import type { PoolView } from '../../shared/games/pool/types'
 import type { TrucoView } from '../../shared/games/truco/types'
 import type { TycoonView } from '../../shared/games/tycoon/types'
 
@@ -27,7 +31,7 @@ export interface RawEventBatch {
 
 export interface GameClientState {
   lobby: GameLobby | null
-  /** visão do jogo aberto: PokerView, GolfView, ChessView, CheckersView, TycoonView ou TrucoView, conforme `lobby.gameId` */
+  /** visão do jogo aberto: PokerView, GolfView, ChessView, CheckersView, TycoonView, TrucoView, NavalView, MysteryView ou PoolView, conforme `lobby.gameId` */
   view: unknown
   /** último lote de eventos recebido (a CENA anima a partir dele; o seq evita animar duas vezes) */
   lastEvents: RawEventBatch | null
@@ -117,6 +121,41 @@ export interface TrucoSceneProps {
   lastEvents: RawEventBatch | null
   reducedMotion: boolean
   onPlay: (card: string) => void
+}
+
+/** Batalha naval (SVG em pixel art): o seu mar e o do outro. */
+export interface NavalSceneProps {
+  view: NavalView
+  reducedMotion: boolean
+  /** frota pronta (a SALA manda para o servidor) */
+  onPlace: (ships: Placement[]) => void
+  /** tiro (ou a rajada da salva); a SALA põe o `ref` */
+  onShoot: (cells: Cell[]) => void
+}
+
+/** Mistério (HTML + pixel art): cartas, caderno de anotações e o palpite em andamento. */
+export interface MysterySceneProps {
+  view: MysteryView
+  reducedMotion: boolean
+  onAct: (action: MysteryAction) => void
+}
+
+/** tacada da sinuca, sem o `ref` (a SALA completa) */
+export interface PoolShot {
+  dx: number
+  dy: number
+  power: number
+  cue?: { x: number; y: number }
+  pocket?: number
+}
+
+/** Mesa da sinuca (canvas 2D em pixel art). A cena anima a tacada a partir do "antes". */
+export interface PoolSceneProps {
+  view: PoolView
+  reducedMotion: boolean
+  onShoot: (shot: PoolShot) => void
+  /** som da simulação local (bola caindo na caçapa) */
+  onSfx?: (name: SfxName) => void
 }
 
 // ---------------- ÁUDIO ----------------

@@ -54,6 +54,9 @@ chore(release): helper 0.1.3
 | `magnata` | Magnata: regras, tabuleiro, cartas, HUD |
 | `tiro` | Tiro na Sala: simulação, rede, mapas, cena, HUD |
 | `truco` | truco gaudério: regras, mesa, HUD |
+| `naval` | batalha naval: frota, tiros, mares, HUD |
+| `misterio` | Mistério: cartas, palpites, caderno, HUD |
+| `sinuca` | sinuca: física, regras da bola 8, mesa, HUD |
 | `tour` | tour guiado |
 | `jan` | o mascote Jan |
 | `ui` | visual geral, tela inicial, componentes |

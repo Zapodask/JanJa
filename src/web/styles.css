@@ -35,8 +35,12 @@ code { font-family: inherit; font-variant-numeric: tabular-nums; }
 .spacer { flex: 1; }
 
 /* ---------- marca ---------- */
-.brand { font-stretch: 125%; font-weight: 900; letter-spacing: -0.03em; color: var(--lamp); font-size: 22px; line-height: 1; display: inline-block; }
-.brand.xl { font-size: clamp(48px, 9vw, 72px); letter-spacing: -0.04em; }
+.brand { display: inline-block; line-height: 0; }
+.brand svg { display: block; height: 42px; width: auto; }
+.brand.xl svg { height: auto; width: clamp(204px, 40vw, 357px); }
+/* na sala, a logo é o botão de voltar ao início */
+.brand-home { --bg: transparent; --bg-h: transparent; --bd: transparent; --bd-h: transparent; height: auto; padding: 0; border-radius: 4px; }
+.brand-home:hover .brand { filter: brightness(1.08); }
 .brand.draw { animation: tv-on 0.6s var(--ease) both; }
 
 /* ---------- botões: variantes só definem variáveis ---------- */
@@ -704,6 +708,98 @@ button.link:hover:not(:disabled) { --fg: var(--paper); }
 .tr-score .us b { color: var(--lamp); }
 .tr-call { --bd: var(--lamp); }
 @media (prefers-reduced-motion: reduce) { .tr-played-card.in, .tr-bubble { animation: none; } .tr-hand-card { transition: none; } }
+
+/* batalha naval: dois mares em pixel art */
+.nv-scene { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--wall); display: flex; align-items: center; justify-content: center; gap: 24px; padding: 16px; box-sizing: border-box; }
+.nv-scene.tall { flex-direction: column; gap: 12px; }
+.nv-board { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.nv-board figcaption { color: var(--dust); font-size: 15px; }
+.nv-board.active figcaption { color: var(--lamp); }
+.nv-board svg { display: block; image-rendering: pixelated; outline: none; border-radius: 2px; box-shadow: 0 0 0 3px var(--rug); }
+.nv-board.active svg { box-shadow: 0 0 0 3px var(--lamp); }
+.nv-board svg.clickable { cursor: crosshair; touch-action: none; }
+.nv-label text { font-family: 'Archivo Variable', system-ui, sans-serif; font-size: 4px; font-weight: 700; fill: var(--dust); }
+.nv-ship.sunk { filter: grayscale(0.6) brightness(0.65); }
+.nv-new { animation: nv-pop 0.35s var(--ease) both; transform-box: fill-box; transform-origin: center; }
+@keyframes nv-pop { from { transform: scale(0.2); opacity: 0; } }
+.nv-enemy { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.nv-salvo { display: flex; align-items: center; gap: 12px; color: var(--dust); font-size: 13px; }
+.nv-dock { display: flex; flex-direction: column; gap: 10px; width: 250px; padding: 14px; border-radius: var(--r-panel); background: var(--sofa); border: 1px solid var(--rug); }
+.nv-dock ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.nv-pick { width: 100%; justify-content: flex-start; gap: 10px; --bg: var(--wall); --bg-h: var(--rug); }
+.nv-pick.on { --bd: var(--lamp); --bd-h: var(--lamp); }
+.nv-pick.placed { opacity: 0.7; }
+.nv-pick svg { image-rendering: pixelated; flex: none; }
+.nv-pick small { color: var(--dust); }
+.nv-placed { margin-left: auto; color: var(--on); display: flex; }
+.nv-dock-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.nv-dock-actions .primary { grid-column: 1 / -1; }
+.nv-afloat { display: flex; gap: 16px; color: var(--dust); font-size: 14px; }
+.nv-afloat b { color: var(--paper); font-family: 'Archivo Variable', system-ui, sans-serif; font-weight: 800; }
+.nv-afloat .me b { color: var(--lamp); }
+.nv-end { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--rug); }
+.nv-end strong { color: var(--lamp); font-size: 18px; }
+.nv-end span { color: var(--dust); }
+.nv-end .modal-actions { margin-left: auto; margin-top: 0; }
+@media (prefers-reduced-motion: reduce) { .nv-new { animation: none; } }
+
+/* Mistério: cartas, caderno de anotações e o palpite em andamento */
+.my-scene { position: relative; width: 100%; height: 100%; overflow: auto; background: var(--wall); display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 20px; padding: 16px; box-sizing: border-box; }
+.my-left, .my-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.my-left h3 { margin: 0; font-size: 16px; color: var(--dust); font-weight: 500; }
+.my-hand, .my-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.my-card { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 92px; padding: 0 0 8px; border-radius: 8px; background: var(--paper); color: var(--wall); border: 2px solid var(--rug); overflow: hidden; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); height: auto; }
+button.my-card { --bg: var(--paper); --bg-h: #fff; --bd: var(--rug); --bd-h: var(--lamp); --fg: var(--wall); }
+.my-card.small { width: 72px; padding-bottom: 6px; }
+.my-card.on { border-color: var(--lamp); box-shadow: 0 0 0 2px var(--lamp); }
+.my-card.dim { opacity: 0.45; }
+.my-band { align-self: stretch; text-align: center; font-size: 10px; font-weight: 700; color: var(--wall); padding: 2px 0; }
+.my-art { image-rendering: pixelated; }
+.my-cname { font-size: 12px; font-weight: 600; text-align: center; line-height: 1.1; padding: 0 4px; white-space: normal; overflow-wrap: anywhere; min-height: 2.2em; display: flex; align-items: center; }
+.my-card.small .my-cname { font-size: 11px; }
+.my-notes { border-collapse: collapse; font-size: 12px; width: 100%; }
+.my-notes th, .my-notes td { padding: 1px 3px; text-align: center; }
+.my-notes thead th { color: var(--dust); font-weight: 500; max-width: 48px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.my-notes thead th:first-child { text-align: left; color: var(--paper); }
+.my-notes-head th { text-align: left; color: var(--lamp); padding-top: 8px; font-weight: 600; }
+.my-notes tbody th[scope="row"] { text-align: left; font-weight: 500; white-space: nowrap; }
+.my-notes tr.out th[scope="row"] { color: var(--dust); text-decoration: line-through; }
+.my-notes tr.env th[scope="row"] { color: var(--lamp); }
+.my-mark { --bg: var(--sofa); --bg-h: var(--rug); --bd: var(--rug); width: 26px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
+.my-mark.tem { --fg: var(--on); }
+.my-mark.nao { --fg: var(--off); }
+.my-mark.talvez { --fg: var(--lamp); }
+.my-mark.auto { opacity: 1; cursor: default; --bg: var(--wall); }
+.my-players { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
+.my-players li { display: flex; flex-direction: column; padding: 6px 12px; border-radius: var(--r-ctl); background: var(--sofa); border: 1px solid var(--rug); }
+.my-players li.turn { border-color: var(--lamp); }
+.my-players li.showing { border-color: var(--on); }
+.my-players li.out { opacity: 0.5; }
+.my-players small { color: var(--dust); font-size: 11px; }
+.my-current, .my-pick { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--r-panel); background: var(--sofa); border: 1px solid var(--rug); }
+.my-current strong, .my-pick strong { color: var(--lamp); font-size: 16px; }
+.my-pick-row { display: flex; gap: 10px; align-items: flex-start; }
+.my-pick-label { width: 72px; flex: none; color: var(--dust); font-size: 13px; padding-top: 8px; }
+.my-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.my-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.my-history li { padding: 4px 8px; border-radius: var(--r-ctl); background: var(--sofa); }
+.my-history small { color: var(--dust); }
+.my-secret { font-size: 13px; color: var(--lamp); padding: 4px 10px; border-radius: var(--r-ctl); border: 1px dashed var(--lamp); }
+.my-end .my-row { justify-content: center; }
+@media (max-width: 900px) { .my-scene { grid-template-columns: 1fr; } }
+
+/* sinuca: mesa em canvas pixel art */
+.pl-scene { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--wall); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+.pl-canvas { display: block; image-rendering: pixelated; outline: none; cursor: crosshair; touch-action: none; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); border-radius: 4px; }
+.pl-canvas:focus-visible { box-shadow: 0 0 0 2px var(--lamp), 0 12px 32px rgba(0, 0, 0, 0.5); }
+.pl-tips { display: flex; align-items: center; gap: 12px; min-height: 36px; color: var(--dust); font-size: 13px; }
+.pl-eight { color: var(--lamp); }
+.pl-players { display: flex; gap: 10px; flex-wrap: wrap; }
+.pl-player { display: flex; flex-direction: column; gap: 2px; padding: 4px 10px; border-radius: var(--r-ctl); background: var(--wall); border: 1px solid var(--rug); font-size: 13px; }
+.pl-player.turn { border-color: var(--lamp); }
+.pl-player small { color: var(--dust); }
+.pl-balls { display: flex; gap: 1px; }
+.pl-balls svg { image-rendering: pixelated; }
 .hand-ex { color: var(--paper); }
 .hand-hint { grid-column: 2; color: var(--dust); font-size: 13px; }
 

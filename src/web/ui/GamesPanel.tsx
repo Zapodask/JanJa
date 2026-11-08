@@ -4,6 +4,7 @@ import { DEFAULT_CHESS_OPTIONS, type ChessMinutes, type ChessOptions } from '../
 import { MAPS } from '../../shared/games/golf/maps'
 import { DEFAULT_GOLF_OPTIONS, type GolfOptions, type HoleSeconds } from '../../shared/games/golf/types'
 import { DEFAULT_OPTIONS, type PokerOptions } from '../../shared/games/poker/types'
+import { DEFAULT_NAVAL_OPTIONS, type NavalOptions } from '../../shared/games/naval/types'
 import type { GameId, GameLobby } from '../../shared/games/protocol'
 import { DEFAULT_SHOOTER_OPTIONS, KILL_LIMITS, MATCH_MINUTES, MAX_BOTS, type ShooterOptions } from '../../shared/games/shooter/types'
 import { DEFAULT_TRUCO_OPTIONS, type TrucoOptions, type TrucoPlayers } from '../../shared/games/truco/types'
@@ -36,18 +37,29 @@ const GAMES: DropdownOption[] = [
   { value: 'checkers', label: 'Damas', sub: 'Duas pessoas, regras brasileiras', icon: 'checker' },
   { value: 'tycoon', label: 'Magnata', sub: 'Compre cidades e quebre os amigos, de 2 a 6', icon: 'dice' },
   { value: 'truco', label: 'Truco', sub: 'Truco gaudério: 1x1, 2x2 ou 3x3', icon: 'sword' },
-  { value: 'shooter', label: 'Tiro na Sala', sub: 'Tiroteio pixel na casa, todo mundo contra todo mundo', icon: 'target' }
+  { value: 'shooter', label: 'Tiro na Sala', sub: 'Tiroteio pixel na casa, todo mundo contra todo mundo', icon: 'target' },
+  { value: 'naval', label: 'Batalha naval', sub: 'Duas pessoas, cada uma com a sua frota', icon: 'anchor' },
+  { value: 'mystery', label: 'Mistério', sub: 'Descubra quem roubou o quadro, de 2 a 6', icon: 'search' },
+  { value: 'pool', label: 'Sinuca', sub: 'Bola 8, uma pessoa contra a outra', icon: 'eight' }
 ]
 
-const GAME_ICON: Record<GameId, 'cards' | 'flag' | 'pawn' | 'checker' | 'dice' | 'sword' | 'target'> = {
+const GAME_ICON: Record<GameId, 'cards' | 'flag' | 'pawn' | 'checker' | 'dice' | 'sword' | 'target' | 'anchor' | 'search' | 'eight'> = {
   poker: 'cards',
   golf: 'flag',
   chess: 'pawn',
   checkers: 'checker',
   tycoon: 'dice',
   truco: 'sword',
-  shooter: 'target'
+  shooter: 'target',
+  naval: 'anchor',
+  mystery: 'search',
+  pool: 'eight'
 }
+
+const NAVAL_MODES: DropdownOption[] = [
+  { value: 'classico', label: 'Clássico', sub: 'Um tiro por vez; acertou, joga de novo', icon: 'focus' },
+  { value: 'salva', label: 'Salva', sub: 'Um tiro por navio de pé, todos de uma vez', icon: 'grid' }
+]
 
 const SHOOTER_MAPS: DropdownOption[] = [
   { value: 'casa', label: 'A Casa', sub: 'Sala com sofá e TV, cozinha, corredor e quartos', icon: 'flag' },
@@ -134,7 +146,7 @@ function chessLabel(o: ChessOptions): string {
   return o.minutes === 0 ? 'sem relógio' : `${o.minutes} minutos para cada um`
 }
 
-const TITLES: Record<GameId, string> = { poker: 'Mesa de Poker', golf: 'Golfe', chess: 'Xadrez', checkers: 'Damas', tycoon: 'Magnata', truco: 'Truco', shooter: 'Tiro na Sala' }
+const TITLES: Record<GameId, string> = { poker: 'Mesa de Poker', golf: 'Golfe', chess: 'Xadrez', checkers: 'Damas', tycoon: 'Magnata', truco: 'Truco', shooter: 'Tiro na Sala', naval: 'Batalha naval', mystery: 'Mistério', pool: 'Sinuca' }
 export const gameTitle = (id: GameId): string => TITLES[id]
 
 function lobbyLabel(lobby: GameLobby): string {
@@ -142,6 +154,9 @@ function lobbyLabel(lobby: GameLobby): string {
   if (lobby.gameId === 'shooter') return shooterLabel(lobby.options as ShooterOptions)
   if (lobby.gameId === 'chess') return chessLabel(lobby.options as ChessOptions)
   if (lobby.gameId === 'checkers') return chessLabel(lobby.options as CheckersOptions)
+  if (lobby.gameId === 'pool') return 'bola 8, lisas contra listradas'
+  if (lobby.gameId === 'mystery') return 'o roubo do quadro no Casarão da Vila'
+  if (lobby.gameId === 'naval') return (lobby.options as NavalOptions).mode === 'salva' ? 'modo salva' : 'modo clássico'
   if (lobby.gameId === 'truco') {
     const n = (lobby.options as TrucoOptions).players / 2
     return `${n}x${n}, até 30 pontos, com flor`
@@ -163,6 +178,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
   const [tycoon, setTycoon] = useState<TycoonOptions>(DEFAULT_TYCOON_OPTIONS)
   const [shooter, setShooter] = useState<ShooterOptions>(DEFAULT_SHOOTER_OPTIONS)
   const [truco, setTruco] = useState<TrucoOptions>(DEFAULT_TRUCO_OPTIONS)
+  const [naval, setNaval] = useState<NavalOptions>(DEFAULT_NAVAL_OPTIONS)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -199,7 +215,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                   ariaLabel="Jogo"
                   value={pick}
                   options={GAMES}
-                  onChange={(v) => setPick(v === 'golf' || v === 'chess' || v === 'checkers' || v === 'tycoon' || v === 'truco' || v === 'shooter' ? v : 'poker')}
+                  onChange={(v) => setPick(v === 'golf' || v === 'chess' || v === 'checkers' || v === 'tycoon' || v === 'truco' || v === 'shooter' || v === 'naval' || v === 'mystery' || v === 'pool' ? v : 'poker')}
                 />
               </div>
             </div>
@@ -288,6 +304,34 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                       value={String(shooter.bots)}
                       options={SHOOTER_BOTS}
                       onChange={(v) => setShooter({ ...shooter, bots: Math.max(0, Math.min(MAX_BOTS, Number(v) || 0)) })}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : pick === 'pool' ? (
+              <p className="muted games-lead">
+                Sinuca de bola 8 para duas pessoas: lisas contra listradas. Encaçapou do seu grupo, joga de novo. Limpou o grupo, escolha
+                a caçapa e mate a 8. Falta dá bola na mão para o outro.
+              </p>
+            ) : pick === 'mystery' ? (
+              <p className="muted games-lead">
+                Roubaram o quadro do Casarão da Vila durante a festa. Palpite quem foi, onde e com o quê: quem tiver uma das cartas
+                mostra para você em segredo. Acertou a acusação, venceu. De 2 a 6 pessoas.
+              </p>
+            ) : pick === 'naval' ? (
+              <>
+                <p className="muted games-lead">
+                  Batalha naval para duas pessoas. Cada uma posiciona a frota escondida e tenta afundar a do outro primeiro.
+                </p>
+                <div className="games-options">
+                  <div className="games-opt">
+                    <span>Tiros</span>
+                    <Dropdown
+                      icon="focus"
+                      ariaLabel="Modo de tiro"
+                      value={naval.mode}
+                      options={NAVAL_MODES}
+                      onChange={(v) => setNaval({ mode: v === 'salva' ? 'salva' : 'classico' })}
                     />
                   </div>
                 </div>
@@ -402,7 +446,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
             )}
             <div className="modal-actions">
               <button onClick={onClose}>Agora não</button>
-              <button className="primary" onClick={() => api.open(pick, pick === 'golf' ? golf : pick === 'chess' ? chess : pick === 'checkers' ? checkers : pick === 'tycoon' ? tycoon : pick === 'truco' ? truco : pick === 'shooter' ? shooter : poker)}>
+              <button className="primary" onClick={() => api.open(pick, pick === 'golf' ? golf : pick === 'chess' ? chess : pick === 'checkers' ? checkers : pick === 'tycoon' ? tycoon : pick === 'truco' ? truco : pick === 'shooter' ? shooter : pick === 'naval' ? naval : pick === 'mystery' || pick === 'pool' ? {} : poker)}>
                 {pick === 'poker' ? 'Abrir mesa' : 'Abrir partida'}
               </button>
             </div>
