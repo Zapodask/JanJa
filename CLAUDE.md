@@ -17,7 +17,7 @@ npm run typecheck         # 3 tsconfigs: web, worker, testes
 npm test                  # vitest (ambiente node)
 npm run test:e2e          # Chrome de verdade contra o wrangler dev
 npm run sprites           # regenera public/game/sprites.{png,json} a partir de src/web/game/art
-npm run icons             # regenera public/icons/icon-{192,512}.png (ícone do app) a partir da TV de src/web/ui/pixelData.ts
+npm run icons             # regenera public/icons/icon-{192,512}.png (TV) e public/favicon.svg (Jan fazendo o L) a partir de src/web/ui/pixelData.ts
 npm run validate-commits  # confere a mensagem do último commit
 cd helper && cargo test   # helper (em Linux a injeção de input é um stub)
 ```
@@ -31,6 +31,7 @@ Antes de entregar qualquer mudança: `npm run typecheck && npm test && npx vite 
 | `src/shared/protocol.ts` | mensagens cliente/servidor (zod), `PeerState`, canais com limite (`RoomSettings`, `Channel.limit`), chat (`ChatMessage`), teto da sala `MAX_PEERS = 100` |
 | `src/web/ui/Channels.tsx` | canais na barra lateral em árvore compacta (entrar, criar, renomear, apagar), "Outras salas" e o rodapé "Baixar" |
 | `src/web/ui/ChatPanel.tsx` | chat do canal: coluna à direita, no lugar da tela (`cheio`) ou fechado com contador |
+| `src/web/favicon.ts` | favicon animado: troca o `<link rel="icon">` pelos quadros da pose `ell` (Jan fazendo o L); parado com "reduzir movimento" |
 | `src/web/install.ts` | instalar o JanJa como app (PWA): guarda o `beforeinstallprompt`; manifesto em `public/manifest.webmanifest` |
 | `src/shared/control.ts` | protocolo do controle remoto (canal de dados id 7) |
 | `src/shared/games/` | plataforma de jogos (`types.ts`, `protocol.ts`, `registry.ts`) e o poker (`poker/engine.ts`, `evaluate.ts`, `describe.ts`) |

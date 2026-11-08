@@ -139,7 +139,33 @@ function wave(tilt: boolean): Frame {
 }
 const WAVE: Frame[] = [wave(false), wave(true), wave(false), wave(true)]
 
-export type PoseName = 'idle' | 'remote' | 'wait' | 'walk' | 'wave'
+// ---------- ell: Jan fazendo o L (favicon animado) ----------
+/** Jan 2 px para a esquerda: abre espaço para a mão com o L do lado direito. */
+const STAND_L: Frame = STAND.map((l) => l.slice(2) + '..')
+function ell(lift = false): Frame {
+  let f = paint(STAND_L, 18, 14, 'O') // a mão direita saiu da barra do moletom
+  // ombro e manga subindo pela direita
+  f = paint(f, 13, 15, 'kkk')
+  f = paint(f, 14, 15, 'oooooOk')
+  f = paint(f, 15, 16, 'kkkkkk')
+  for (let r = 10; r <= 13; r++) f = paint(f, r, 18, 'koOk')
+  // indicador para cima, polegar para fora: um L para quem olha
+  f = paint(f, 1, 18, 'kkkk')
+  for (const r of [2, 3, 4]) f = paint(f, r, 18, 'kssk')
+  f = paint(f, 5, 18, 'ksskkk')
+  f = paint(f, 6, 18, 'kssssk')
+  f = paint(f, 7, 18, 'kssssk')
+  f = paint(f, 8, 18, 'kSSkkk')
+  f = paint(f, 9, 18, 'kkkk')
+  if (lift) {
+    f = shiftRegion(f, 0, 9, 18, 23, -1)
+    f = paint(f, 9, 18, 'koOk')
+  }
+  return f
+}
+const ELL: Frame[] = [ell(), ell(true), closeEyes(ell(true))]
+
+export type PoseName = 'idle' | 'remote' | 'wait' | 'walk' | 'wave' | 'ell'
 
 interface PoseDef {
   frames: Frame[]
@@ -160,7 +186,9 @@ export const POSES: Record<PoseName, PoseDef> = {
     ms: 250
   },
   walk: { frames: WALK, seq: [0, 1, 2, 3], ms: 125 },
-  wave: { frames: WAVE, seq: [0, 1, 0, 1, 2, 3], ms: 220 }
+  wave: { frames: WAVE, seq: [0, 1, 0, 1, 2, 3], ms: 220 },
+  // loop curto: o L balança sem parar e pisca uma vez por volta (~1,8 s)
+  ell: { frames: ELL, seq: [0, 1, 0, 1, 0, 1, 0, 2], ms: 220 }
 }
 
 // ---------- TV pixel (Home) ----------
@@ -231,6 +259,17 @@ export function frameRects(frame: Frame): { x: number; y: number; w: number; fil
     }
   })
   return rects
+}
+
+/** Fundo do favicon: o café da página, com cantos arredondados. */
+export const ICON_BG = '#221C19'
+
+/** Favicon de um quadro: a arte ocupa o ícone inteiro, sobre o fundo café. */
+export function iconSvg(frame: Frame): string {
+  const rects = frameRects(frame)
+    .map((r) => `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="1" fill="${r.fill}"/>`)
+    .join('')
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}" shape-rendering="crispEdges"><rect width="${SIZE}" height="${SIZE}" rx="3" fill="${ICON_BG}"/>${rects}</svg>`
 }
 
 /** SVG completo de um quadro, como texto (usado no preview estático). */
