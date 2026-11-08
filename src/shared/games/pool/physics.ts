@@ -32,13 +32,17 @@ export interface Pocket {
   r: number
 }
 
+/** raio das caçapas: do canto e do meio (o centro da bola encostada na tabela fica a 1,92 da do meio) */
+const CORNER_R = 2.4
+const SIDE_R = 2.2
+
 export const POCKETS: readonly Pocket[] = [
-  { x: 0, y: 0, r: 3 },
-  { x: TABLE_W / 2, y: -0.8, r: 2.6 },
-  { x: TABLE_W, y: 0, r: 3 },
-  { x: 0, y: TABLE_H, r: 3 },
-  { x: TABLE_W / 2, y: TABLE_H + 0.8, r: 2.6 },
-  { x: TABLE_W, y: TABLE_H, r: 3 }
+  { x: 0, y: 0, r: CORNER_R },
+  { x: TABLE_W / 2, y: -0.8, r: SIDE_R },
+  { x: TABLE_W, y: 0, r: CORNER_R },
+  { x: 0, y: TABLE_H, r: CORNER_R },
+  { x: TABLE_W / 2, y: TABLE_H + 0.8, r: SIDE_R },
+  { x: TABLE_W, y: TABLE_H, r: CORNER_R }
 ]
 
 /** 0 = branca, 1..7 lisas, 8 a preta, 9..15 listradas */
