@@ -1,14 +1,16 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { roomUrl } from '../../shared/protocol'
+import { DEFAULT_ROOM_NAME, roomUrl } from '../../shared/protocol'
 import { useAudioLevel, useSpeaking } from '../audio'
 import type { PeerView, Route } from '../rtc/PeerManager'
 import { useControl } from '../control/useControl'
 import { PRESETS, bitrateFor, presetById } from '../rtc/quality'
-import { getPrefs, rememberRoom, setPrefs, volumeKey } from '../storage'
+import { getPrefs, recentRooms, rememberRoom, setPrefs, volumeKey } from '../storage'
 import { useAudioBlocked } from '../playback'
 import { playDoorbell, playKnock, playShareOn, setSoundSink } from '../sounds'
 import { canShareScreen, canUseCamera, useRoom } from '../useRoom'
 import { CamFocus, CamStrip, type CamItem } from './Cams'
+import { ChannelList, DownloadBox, OtherRooms, ServerCard } from './Channels'
+import { ChatPanel, type ChatMode } from './ChatPanel'
 import type { Rect, SceneLayout } from '../game/contract'
 import { GameAudioDriver } from '../game/GameAudioDriver'
 import { sameRects, shortcutAction, shouldInvite } from '../game/helpers'
@@ -21,7 +23,7 @@ import { Brand, TvOff } from './Brand'
 import { Jan } from './Pixel'
 import { Dropdown, type DropdownOption } from './Dropdown'
 import { Icon, type IconName } from './icons'
-import { RemoteAudio, toggleFullscreen, VideoTile, VolumeSlider } from './media'
+import { RemoteAudio, toggleFullscreen, VideoTile } from './media'
 import { useToast } from './Toasts'
 import { startTour, stopTour, tourActive } from './tour'
 import { ROOM_STEPS, shouldAskTour, shouldAutoTour } from './tourLogic'
@@ -75,57 +77,34 @@ function useOutputDevices() {
   return devices
 }
 
-/** Linha de uma pessoa na barra lateral; quem fala ganha aura. */
-function PersonRow({
-  name,
-  stream,
-  muted,
-  detail,
-  volume,
-  onVolume
-}: {
-  name: string
-  stream?: MediaStream
-  muted: boolean
-  detail?: string
-  volume?: number
-  onVolume?: (v: number) => void
-}) {
-  const active = !muted && !!stream
-  const speaking = useSpeaking(stream, active)
-  const level = useAudioLevel(stream, active)
-  return (
-    <li className={`person ${speaking ? 'speaking' : ''}`}>
-      <Avatar name={name} size={40} level={level} speaking={speaking} />
-      <div className="person-body">
-        <strong>
-          {name}
-        </strong>
-        {detail && <small className="detail">{detail}</small>}
-        {onVolume && volume !== undefined && (
-          <VolumeSlider value={volume} onChange={onVolume} label={`Volume da voz de ${name}`} />
-        )}
-      </div>
-      <span className={`mic-state ${muted ? 'off' : 'on'}`} data-tip={muted ? 'Mic desligado' : 'Mic ligado'} data-tip-pos="left">
-        <Icon name={muted ? 'micOff' : 'mic'} size={15} />
-      </span>
-    </li>
-  )
-}
-
 interface Props {
   roomId: string
   name: string
   hostKey?: string
   onLeave: () => void
+  /** abre outra sala (lista de "Outras salas") */
+  onOpenRoom: (roomId: string) => void
 }
 
-export function Room({ roomId, name, hostKey, onLeave }: Props) {
-  const { state, toggleMic, startShare, stopShare, startCamera, stopCamera, setPreset, answerRequest, reconnect, game, gameApi, gameError } = useRoom(
-    roomId,
-    name,
-    hostKey
-  )
+export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
+  const {
+    state,
+    toggleMic,
+    startShare,
+    stopShare,
+    startCamera,
+    stopCamera,
+    setPreset,
+    answerRequest,
+    reconnect,
+    game,
+    gameApi,
+    gameError,
+    roomApi,
+    roomNotice
+  } = useRoom(roomId, name, hostKey)
+  // salas visitadas antes, menos esta (lidas uma vez ao entrar)
+  const [otherRooms] = useState(() => recentRooms().filter((r) => r.roomId !== roomId).slice(0, 4))
   const toast = useToast()
   const control = useControl({ manager: state.manager, screen: state.screen, peers: state.peers, notify: toast })
   const controlling = control.controller.phase === 'active'
@@ -155,34 +134,42 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
   }
 
   // pedido de entrada aparece no título da aba, para o host ver mesmo em outra aba
+  // o nome da sala vai no título da aba (e o pedido de entrada aparece mesmo em outra aba)
+  const tabName = state.settings.name && state.settings.name !== DEFAULT_ROOM_NAME ? `${state.settings.name} · JanJa` : 'JanJa'
   useEffect(() => {
-    document.title = state.requests.length ? `(${state.requests.length}) Pedido de entrada · JanJa` : 'JanJa'
+    document.title = state.requests.length ? `(${state.requests.length}) Pedido de entrada · ${tabName}` : tabName
     return () => {
       document.title = 'JanJa'
     }
-  }, [state.requests.length])
+  }, [state.requests.length, tabName])
 
-  // lembra a sala (e quem estava nela) para a lista de recentes
-  const othersKey = state.peers.map((p) => p.name).join('\n')
+  // lembra a sala (e quem estava nela, de todos os canais) para a lista de recentes
+  const othersKey = state.roster.map((p) => p.name).join('\n')
+  const roomName = state.settings.name
   useEffect(() => {
     if (state.status !== 'na-sala') return
-    rememberRoom({ roomId, people: othersKey ? othersKey.split('\n') : [], host: state.isHost })
-  }, [state.status, state.isHost, roomId, othersKey])
+    rememberRoom({ roomId, name: roomName || undefined, people: othersKey ? othersKey.split('\n') : [], host: state.isHost })
+  }, [state.status, state.isHost, roomId, othersKey, roomName])
 
-  // avisos de quem entrou e saiu (o primeiro retrato da sala não gera aviso)
+  // avisos de quem entrou e saiu da sala (trocar de canal não conta; o primeiro retrato não gera aviso)
   const seen = useRef<Map<string, string> | null>(null)
   useEffect(() => {
     if (state.status !== 'na-sala') {
       seen.current = null
       return
     }
-    const now = new Map(state.peers.map((p) => [p.id, p.name]))
+    const now = new Map(state.roster.map((p) => [p.peerId, p.name]))
     const prev = seen.current
     seen.current = now
     if (!prev) return
     for (const [id, n] of now) if (!prev.has(id)) toast(`${n} entrou`, 'ok')
     for (const [id, n] of prev) if (!now.has(id)) toast(`${n} saiu`, 'info')
-  }, [state.status, state.peers, toast])
+  }, [state.status, state.roster, toast])
+
+  // erros de canal (ex.: canal apagado enquanto você clicava)
+  useEffect(() => {
+    if (roomNotice) toast(roomNotice.message, 'warn')
+  }, [roomNotice, toast])
 
   // campainha para cada pedido de entrada novo (só quem aprova recebe pedidos)
   const rang = useRef<Set<string>>(new Set())
@@ -272,7 +259,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
       const { hasAudio } = await startShare(state.preset)
       if (!hasAudio) {
         toast(
-          'Compartilhando sem som. Para enviar o áudio, compartilhe a tela inteira (ou uma aba) e marque "Compartilhar áudio".',
+          'Compartilhando sem som. Para enviar o áudio, marque "Compartilhar áudio" no seletor do navegador. Se a opção não aparecer na janela, compartilhe a tela inteira.',
           'warn',
           10000
         )
@@ -421,6 +408,56 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
     setPrefs({ sounds: next })
     if (next) playShareOn() // amostra: confirma que o som está ligado
   }
+
+  const [browserAudio, setBrowserAudio] = useState(() => getPrefs().shareBrowserAudio)
+  const toggleBrowserAudio = () => {
+    const next = !browserAudio
+    setBrowserAudio(next)
+    setPrefs({ shareBrowserAudio: next })
+    const later = state.screen ? ' Vale no próximo compartilhamento.' : ''
+    if (next) {
+      toast(
+        `O som do navegador vai junto ao compartilhar a tela inteira. A voz dos amigos também vai e eles podem se ouvir de volta.${later}`,
+        'warn',
+        9000
+      )
+    } else toast(`O som do navegador fica de fora do compartilhamento.${later}`, 'info')
+  }
+
+  // ---------- chat do canal ----------
+  const [chatMode, setChatMode] = useState<ChatMode>(() => getPrefs().chatMode)
+  const chatBefore = useRef<Exclude<ChatMode, 'cheio'>>('coluna')
+  const [chatDraft, setChatDraft] = useState('')
+  const [seenLive, setSeenLive] = useState(0)
+  const changeChatMode = (mode: ChatMode) => {
+    setChatMode(mode)
+    // "cheio" é passageiro: ao recarregar volta como coluna
+    setPrefs({ chatMode: mode === 'cheio' ? 'coluna' : mode })
+  }
+  const toggleChatFull = () => {
+    if (chatMode === 'cheio') return changeChatMode(chatBefore.current)
+    chatBefore.current = chatMode === 'fechado' ? 'fechado' : 'coluna'
+    changeChatMode('cheio')
+  }
+  useEffect(() => {
+    if (chatMode !== 'fechado') setSeenLive(state.chatLive)
+  }, [chatMode, state.chatLive])
+  const unread = chatMode === 'fechado' ? Math.max(0, state.chatLive - seenLive) : 0
+  const channelName = state.settings.channels.find((c) => c.id === state.channelId)?.name ?? 'Geral'
+  const chatPanel =
+    chatMode === 'fechado' ? null : (
+      <ChatPanel
+        channelName={channelName}
+        messages={state.chat}
+        selfId={state.selfId}
+        mode={chatMode}
+        draft={chatDraft}
+        onDraft={setChatDraft}
+        onSend={roomApi.sendChat}
+        onClose={() => changeChatMode('fechado')}
+        onToggleFull={toggleChatFull}
+      />
+    )
 
   const toggleStats = () => {
     const next = !showStats
@@ -578,39 +615,40 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
             </div>
           </div>
 
-          <button className="wide" data-tour="copy-link" onClick={() => void copy()}>
-            <Icon name="link" size={16} /> Copiar link da sala
-          </button>
+          <ServerCard name={state.settings.name} isHost={state.isHost} onRename={roomApi.renameRoom} onCopy={() => void copy()} />
 
-          <section data-tour="people">
-            <h3>Na sala ({state.peers.length + 1})</h3>
-            <ul className="people">
-              <PersonRow
-                name={name}
-                detail={state.isHost ? 'você, criou a sala' : 'você'}
-                stream={state.micStream}
-                muted={micMuted || !state.micStream}
-              />
-              {state.peers.map((p) => (
-                <PersonRow
-                  key={p.id}
-                  name={p.name}
-                  stream={p.mic}
-                  muted={p.state.micMuted}
-                  detail={[p.isHost ? 'criou a sala' : '', showStats ? routeInfo(p) : ''].filter(Boolean).join(', ') || undefined}
-                  volume={vol('mic', p.name)}
-                  onVolume={(v) => setVol('mic', p.name, v)}
-                />
-              ))}
-            </ul>
-          </section>
-
-          <ControlSection
-            helper={control.helper}
-            onConnect={control.connectHelper}
-            onDisconnect={control.disconnectHelper}
-            onPair={control.pairHelper}
+          <ChannelList
+            settings={state.settings}
+            channelId={state.channelId}
+            isHost={state.isHost}
+            self={{
+              name,
+              stream: state.micStream,
+              muted: micMuted || !state.micStream
+            }}
+            peers={state.peers}
+            roster={state.roster}
+            detailFor={(p) => (showStats ? `Conexão: ${routeInfo(p)}` : undefined)}
+            volumeFor={(who) => vol('mic', who)}
+            onVolume={(who, v) => setVol('mic', who, v)}
+            onJoin={roomApi.joinChannel}
+            onCreate={roomApi.createChannel}
+            onEdit={roomApi.editChannel}
+            onDelete={roomApi.deleteChannel}
           />
+
+          <OtherRooms rooms={otherRooms} onOpen={onOpenRoom} />
+
+          {/* controle remoto e downloads ficam no pé da barra (os canais ganham o espaço de cima) */}
+          <div className="sidebar-foot">
+            <ControlSection
+              helper={control.helper}
+              onConnect={control.connectHelper}
+              onDisconnect={control.disconnectHelper}
+              onPair={control.pairHelper}
+            />
+            <DownloadBox />
+          </div>
         </div>
       </aside>
 
@@ -626,7 +664,7 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
           <button
             className="icon-btn float-toggle"
             onClick={toggleSidebar}
-            data-tip={`Mostrar barra lateral (${state.peers.length + 1} na sala)`}
+            data-tip={`Mostrar barra lateral (${state.roster.length + 1} na sala)`}
             data-tip-pos="bottom"
             aria-label="Mostrar barra lateral"
           >
@@ -645,6 +683,14 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
             <span>{state.error ?? 'A conexão com a sala caiu.'}</span>
             <button onClick={reconnect}>Reconectar</button>
           </div>
+        )}
+
+        {chatMode === 'fechado' && (
+          <button className="float-chat" onClick={() => changeChatMode('coluna')} aria-label={unread ? `Abrir chat, ${unread} mensagens novas` : 'Abrir chat'}>
+            <Icon name="chat" size={18} />
+            <span>Chat</span>
+            {unread > 0 && <i className="badge">{unread > 99 ? '99+' : unread}</i>}
+          </button>
         )}
 
         <div className="stage-body" ref={bodyRef}>
@@ -759,6 +805,8 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
               />
             </Suspense>
           )}
+          {/* chat no lugar da tela: a tela continua montada (e tocando) por baixo */}
+          {chatMode === 'cheio' && chatPanel}
         </div>
 
         {inviteVisible && game.lobby && (
@@ -779,7 +827,8 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
             style={{ '--ring': mySpeaking ? 2 + Math.min(1, myLevel * 1.6) * 4 : 0 } as CSSProperties}
             disabled={micDisabled}
             onClick={() => void toggleMic()}
-            data-tip={micDisabled ? (state.micError ?? 'Sem microfone') : 'Atalho: M'}
+            data-tip={micDisabled ? (state.micError ?? 'Sem microfone') : `${micMuted ? 'Ligar mic' : 'Mutar'} (M)`}
+            aria-label={micDisabled ? 'Sem mic' : micMuted ? 'Ligar mic' : 'Mutar'}
             aria-pressed={!micMuted}
           >
             <Icon name={micMuted || micDisabled ? 'micOff' : 'mic'} size={20} />
@@ -831,6 +880,18 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
             />
           )}
 
+          {canShare && (
+            <button
+              className={`icon-btn ${browserAudio ? 'on' : ''}`}
+              onClick={toggleBrowserAudio}
+              data-tip={browserAudio ? 'Tirar o som do navegador do compartilhamento' : 'Incluir o som do navegador no compartilhamento'}
+              aria-label="Incluir som do navegador"
+              aria-pressed={browserAudio}
+            >
+              <Icon name={browserAudio ? 'volume' : 'volume0'} size={20} />
+            </button>
+          )}
+
           {outputs.length > 1 && (
             <Dropdown
               placement="up"
@@ -874,12 +935,14 @@ export function Room({ roomId, name, hostKey, onLeave }: Props) {
           </button>
 
           <span className="spacer" />
-          <button className="danger" onClick={onLeave}>
+          <button className="danger leave" onClick={onLeave} data-tip="Sair da sala" aria-label="Sair da sala">
             <Icon name="logout" size={20} />
             <span className="lbl">Sair</span>
           </button>
         </footer>
       </main>
+
+      {chatMode === 'coluna' && chatPanel}
 
       {panelOpen && (
         <GamesPanel

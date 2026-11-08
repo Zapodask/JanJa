@@ -32,7 +32,10 @@ export function App() {
   let screen
   if (!roomId) screen = <Home key="home" name={name} onName={setName} onGo={go} invalidPath={path !== '/'} />
   else if (!name) screen = <NameGate key="gate" roomId={roomId} onName={setName} onCancel={() => go('/')} />
-  else screen = <Room key={roomId} roomId={roomId} name={name} hostKey={hostKeyFor(roomId)} onLeave={() => go('/')} />
+  else
+    screen = (
+      <Room key={roomId} roomId={roomId} name={name} hostKey={hostKeyFor(roomId)} onLeave={() => go('/')} onOpenRoom={(id) => go(`/r/${id}`)} />
+    )
 
   return (
     <ToastProvider>

@@ -10,6 +10,8 @@ export interface JoinOptions {
   roomId: string
   name: string
   hostKey?: string
+  /** canal onde estava (reconexão volta para ele) */
+  channelId?: string
   /** padrão: a origem da página */
   origin?: string
 }
@@ -27,7 +29,7 @@ export class SignalingClient {
   constructor(private readonly opts: JoinOptions) {}
 
   connect(onWaiting?: () => void): Promise<Welcome> {
-    const { roomId, name, hostKey } = this.opts
+    const { roomId, name, hostKey, channelId } = this.opts
     const url = wsUrlFor(this.opts.origin ?? location.origin, roomId)
     return new Promise((resolve, reject) => {
       let welcomed = false
@@ -36,7 +38,7 @@ export class SignalingClient {
       this.ws = ws
 
       ws.onopen = () => {
-        this.send({ type: 'join', name, hostKey, clientId: clientId() })
+        this.send({ type: 'join', name, hostKey, clientId: clientId(), channelId })
         this.pinger = window.setInterval(() => this.send({ type: 'ping' }), PING_EVERY_MS)
       }
 

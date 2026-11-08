@@ -127,6 +127,8 @@ const PATHS = {
   ),
   chevron: <path d="M6 9l6 6 6-6" />,
   plus: <path d="M12 5v14M5 12h14" />,
+  pencil: <path d="M4 20h4L19 9l-4-4L4 16v4zM13 7l4 4" />,
+  chat: <path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM8 9.5h8M8 12.5h5" />,
   crown: <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z" />,
   warn: <path d="M12 4l9 16H3L12 4zM12 10v4M12 17h.01" />,
   info: (

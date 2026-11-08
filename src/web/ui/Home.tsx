@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, type FormEvent } from 'react'
-import { CreateRoomResponseSchema, MAX_NAME_LENGTH, parseRoomInput } from '../../shared/protocol'
+import { CreateRoomResponseSchema, MAX_NAME_LENGTH, MAX_ROOM_NAME, parseRoomInput } from '../../shared/protocol'
 import {
   cleanName,
   getPrefs,
@@ -15,6 +15,7 @@ import { canShareScreen } from '../useRoom'
 import { Avatar } from './Avatar'
 import { Brand } from './Brand'
 import { Icon } from './icons'
+import { roomTitle, timeAgo } from './recent'
 import { startTour, stopTour } from './tour'
 import { HOME_STEPS, shouldAskTour, shouldAutoTour } from './tourLogic'
 import { TourPrompt } from './TourPrompt'
@@ -27,28 +28,11 @@ interface Props {
   invalidPath: boolean
 }
 
-function timeAgo(at: number): string {
-  const min = Math.max(0, Math.round((Date.now() - at) / 60000))
-  if (min < 1) return 'agora'
-  if (min < 60) return `há ${min} min`
-  const h = Math.round(min / 60)
-  if (h < 24) return `há ${h} h`
-  const d = Math.round(h / 24)
-  return d === 1 ? 'ontem' : `há ${d} dias`
-}
-
-function roomTitle(r: RecentRoom): string {
-  const p = r.people
-  if (p.length === 0) return `Sala ${r.roomId.slice(0, 6)}`
-  if (p.length === 1) return `Sala com ${p[0]}`
-  if (p.length === 2) return `Sala com ${p[0]} e ${p[1]}`
-  return `Sala com ${p[0]}, ${p[1]} e mais ${p.length - 2}`
-}
-
 export function Home({ name, onName, onGo, invalidPath }: Props) {
   const [draft, setDraft] = useState(name)
   const [code, setCode] = useState('')
   const [approval, setApproval] = useState(savedApproval)
+  const [roomName, setRoomName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(invalidPath ? 'Esse link de sala não é válido.' : '')
   const [recents, setRecents] = useState<RecentRoom[]>(recentRooms)
@@ -81,15 +65,18 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
   }
 
   const create = async () => {
-    if (!commitName()) return
+    const who = commitName()
+    if (!who) return
     setError('')
     setBusy(true)
     saveApproval(approval)
+    // sem nome, a sala ganha o nome de quem criou
+    const name = (roomName.trim() || `Sala de ${who}`).slice(0, MAX_ROOM_NAME)
     try {
       const res = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ requireApproval: approval })
+        body: JSON.stringify({ requireApproval: approval, name })
       })
       if (!res.ok) throw new Error(`O servidor respondeu ${res.status}.`)
       const { roomId, hostKey } = CreateRoomResponseSchema.parse(await res.json())
@@ -149,6 +136,16 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
       </label>
 
       <div className="actions" data-tour="home-actions">
+        <label className="field room-name-field">
+          <span>Nome da sala nova</span>
+          <input
+            value={roomName}
+            maxLength={MAX_ROOM_NAME}
+            onChange={(e) => setRoomName(e.target.value)}
+            placeholder={`Sala de ${cleanName(draft) || 'você'}`}
+            onKeyDown={(e) => e.key === 'Enter' && !busy && void create()}
+          />
+        </label>
         <div className="action-row">
           <button className="primary" disabled={busy} onClick={() => void create()}>
             {busy ? 'Criando...' : 'Criar sala'}
