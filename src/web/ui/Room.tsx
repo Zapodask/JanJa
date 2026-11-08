@@ -15,12 +15,14 @@ import type { CheckersAction, CheckersView } from '../../shared/games/checkers/t
 import type { ChessAction, ChessView, Promo } from '../../shared/games/chess/types'
 import type { GolfView } from '../../shared/games/golf/types'
 import type { PokerView } from '../../shared/games/poker/types'
+import type { Cell, Placement } from '../../shared/games/naval/fleet'
+import type { NavalAction, NavalView } from '../../shared/games/naval/types'
 import type { TrucoAction, TrucoIntent, TrucoView } from '../../shared/games/truco/types'
 import type { TycoonAction, TycoonView } from '../../shared/games/tycoon/types'
 import type { EventBatch, Rect, SceneLayout, SfxName } from '../game/contract'
 import { GameAudioDriver } from '../game/GameAudioDriver'
 import { sameRects, shortcutAction, shouldInvite } from '../game/helpers'
-import { loadCheckersScene, loadChessScene, loadGolfScene, loadScene, loadTrucoScene, loadTycoonScene } from '../game/loaders'
+import { loadCheckersScene, loadChessScene, loadGolfScene, loadNavalScene, loadScene, loadTrucoScene, loadTycoonScene } from '../game/loaders'
 import { Avatar, toneOf } from './Avatar'
 import { GameInvite } from './GameInvite'
 import { GamesPanel } from './GamesPanel'
@@ -55,6 +57,9 @@ const TycoonHudLazy = lazy(() => import('./TycoonHud').then((m) => ({ default: m
 // e a mesa do truco
 const TrucoSceneLazy = lazy(loadTrucoScene)
 const TrucoHudLazy = lazy(() => import('./TrucoHud').then((m) => ({ default: m.TrucoHud })))
+// e a batalha naval
+const NavalSceneLazy = lazy(loadNavalScene)
+const NavalHudLazy = lazy(() => import('./NavalHud').then((m) => ({ default: m.NavalHud })))
 
 /** onde ficam as telas compartilhadas durante o golfe e os jogos de tabuleiro: miniaturas empilhadas no canto de cima */
 const CORNER_TV = { w: 208, h: 117, gap: 8, edge: 12 }
@@ -345,7 +350,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   }, [tiles])
   const shown = [...tiles, ...ghosts.filter((g) => !tiles.some((t) => t.id === g.id))]
 
-  // ---------- jogos (poker, golfe, xadrez, damas, Magnata e truco) ----------
+  // ---------- jogos (poker, golfe, xadrez, damas, Magnata, truco e batalha naval) ----------
   const gameId = game.lobby?.gameId
   const view = gameId === 'poker' && game.view ? (game.view as PokerView) : null
   const golfView = gameId === 'golf' && game.view ? (game.view as GolfView) : null
@@ -353,6 +358,9 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   const checkersView = gameId === 'checkers' && game.view ? (game.view as CheckersView) : null
   const tycoonView = gameId === 'tycoon' && game.view ? (game.view as TycoonView) : null
   const trucoView = gameId === 'truco' && game.view ? (game.view as TrucoView) : null
+  const navalView = gameId === 'naval' && game.view ? (game.view as NavalView) : null
+  const navalRef = useRef(navalView)
+  navalRef.current = navalView
   const trucoRef = useRef(trucoView)
   trucoRef.current = trucoView
   const tycoonRef = useRef(tycoonView)
@@ -377,7 +385,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   const ghostStyles = useRef(new Map<string, CSSProperties>())
   const narrow = useMedia('(max-width: 700px) and (orientation: portrait)')
   const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
-  const tableMode = (!!view || !!golfView || !!duelView || !!tycoonView || !!trucoView) && showTable
+  const tableMode = (!!view || !!golfView || !!duelView || !!tycoonView || !!trucoView || !!navalView) && showTable
   const hiTile = tableMode && hi && tiles.some((t) => t.id === hi) ? hi : null
   const layout: SceneLayout = hiTile ? 'faixa' : 'mesa'
   const hasView = !!game.view
@@ -404,7 +412,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     if (gameError) toast(gameError.message, 'warn')
   }, [gameError, toast])
 
-  const colorSource = view?.seats ?? golfView?.players ?? (duelView ? [duelView.white, duelView.black] : undefined) ?? tycoonView?.players ?? trucoView?.players
+  const colorSource = view?.seats ?? golfView?.players ?? (duelView ? [duelView.white, duelView.black] : undefined) ?? tycoonView?.players ?? trucoView?.players ?? navalView?.players
   const colors = useMemo(() => Object.fromEntries((colorSource ?? []).map((x) => [x.playerId, toneOf(x.name)])), [colorSource])
   const onGolfShot = useCallback(
     (angle: number, power: number) => {
@@ -420,6 +428,15 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     [gameApi]
   )
   const onCheckersMove = useCallback((path: string[]) => gameApi.act({ type: 'move', path } satisfies CheckersAction), [gameApi])
+  const onNavalPlace = useCallback((ships: Placement[]) => gameApi.act({ type: 'place', ships } satisfies NavalAction), [gameApi])
+  /** tiro da batalha naval: vai com o número de tiros que a pessoa viu (`ref`) */
+  const onNavalShoot = useCallback(
+    (cells: Cell[]) => {
+      const v = navalRef.current
+      if (v) gameApi.act({ type: 'shoot', cells, ref: v.ref } satisfies NavalAction)
+    },
+    [gameApi]
+  )
   /** ação do truco: vai com a versão da sua mesa (`ref`), para clique atrasado não valer */
   const onTrucoAct = useCallback(
     (a: TrucoIntent) => {
@@ -457,7 +474,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     if (!tableMode) return undefined
     if (hiTile) return { mode: id === hiTile ? 'hi' : 'parked' }
     if (narrow) return { mode: 'strip' }
-    if (golfView || duelView || tycoonView || trucoView) {
+    if (golfView || duelView || tycoonView || trucoView || navalView) {
       const style = { right: CORNER_TV.edge, top: CORNER_TV.edge + idx * (CORNER_TV.h + CORNER_TV.gap), width: CORNER_TV.w, height: CORNER_TV.h }
       return { mode: 'rect', style }
     }
@@ -892,6 +909,19 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
                 </Suspense>
               </div>
             )}
+            {tableMode && navalView && (
+              <div className="scene-host chess-host">
+                <Suspense
+                  fallback={
+                    <div className="scene-loading">
+                      <TvOff noise />
+                    </div>
+                  }
+                >
+                  <NavalSceneLazy view={navalView} reducedMotion={reducedMotion} onPlace={onNavalPlace} onShoot={onNavalShoot} />
+                </Suspense>
+              </div>
+            )}
             {camItems.length > 0 && (
               <CamStrip
                 items={camItems}
@@ -1081,6 +1111,25 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
                   const options = game.lobby?.options
                   gameApi.close()
                   gameApi.open('truco', options)
+                }}
+                onClose={gameApi.close}
+                onBackToScreens={() => setShowTable(false)}
+                musicOn={musicOn}
+                musicVolume={musicVolume}
+                onMusicOn={toggleMusic}
+                onMusicVolume={changeMusicVolume}
+              />
+            </Suspense>
+          )}
+          {tableMode && navalView && (
+            <Suspense fallback={null}>
+              <NavalHudLazy
+                view={navalView}
+                canManage={!!game.lobby?.canManage}
+                onPlayAgain={() => {
+                  const options = game.lobby?.options
+                  gameApi.close()
+                  gameApi.open('naval', options)
                 }}
                 onClose={gameApi.close}
                 onBackToScreens={() => setShowTable(false)}

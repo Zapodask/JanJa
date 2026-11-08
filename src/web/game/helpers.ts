@@ -3,6 +3,7 @@ import { rankName, rankValue, SUIT_NAME, suitOf } from '../../shared/games/poker
 import type { CheckersEvent } from '../../shared/games/checkers/types'
 import type { ChessEvent } from '../../shared/games/chess/types'
 import type { GolfEvent } from '../../shared/games/golf/types'
+import type { NavalEvent } from '../../shared/games/naval/types'
 import type { TrucoEvent } from '../../shared/games/truco/types'
 import type { TycoonEvent } from '../../shared/games/tycoon/types'
 import type { Card, LegalAction, PokerAction, PokerEvent, PokerMode, PokerView } from '../../shared/games/poker/types'
@@ -235,6 +236,28 @@ export function trucoSfxForEvent(ev: TrucoEvent): SfxCue | null {
 export function trucoTrackForEvent(ev: TrucoEvent): MusicTrack | null {
   if (ev.type === 'deal') return 'calma'
   if (ev.type === 'call' && (ev.call === 'retruco' || ev.call === 'vale4' || ev.call === 'falta')) return 'tensao'
+  if (ev.type === 'end') return 'vitoria'
+  return null
+}
+
+/** Som de um evento da batalha naval: água, acerto, navio afundado e o fim. */
+export function navalSfxForEvent(ev: NavalEvent): SfxCue | null {
+  switch (ev.type) {
+    case 'battle':
+      return { name: 'shuffle' }
+    case 'shot':
+      if (ev.sunk.length) return { name: 'win' }
+      return ev.cells.some((c) => c.hit) ? { name: 'bounce' } : { name: 'splash' }
+    case 'end':
+      return { name: 'podium' }
+    default:
+      return null
+  }
+}
+
+export function navalTrackForEvent(ev: NavalEvent): MusicTrack | null {
+  if (ev.type === 'battle') return 'calma'
+  if (ev.type === 'shot' && ev.sunk.length) return 'tensao'
   if (ev.type === 'end') return 'vitoria'
   return null
 }

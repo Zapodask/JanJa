@@ -7,7 +7,7 @@ import { z } from 'zod'
  * tipa do lado do cliente (ex.: PokerView/PokerEvent).
  */
 
-export const GAME_IDS = ['poker', 'golf', 'chess', 'checkers', 'tycoon', 'truco'] as const
+export const GAME_IDS = ['poker', 'golf', 'chess', 'checkers', 'tycoon', 'truco', 'naval'] as const
 export const GameIdSchema = z.enum(GAME_IDS)
 export type GameId = z.infer<typeof GameIdSchema>
 
