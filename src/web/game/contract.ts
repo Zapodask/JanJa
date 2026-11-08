@@ -11,6 +11,7 @@ import type { GolfView } from '../../shared/games/golf/types'
 import type { PokerEvent, PokerView } from '../../shared/games/poker/types'
 import type { Cell, Placement } from '../../shared/games/naval/fleet'
 import type { NavalView } from '../../shared/games/naval/types'
+import type { MysteryAction, MysteryView } from '../../shared/games/mystery/types'
 import type { TrucoView } from '../../shared/games/truco/types'
 import type { TycoonView } from '../../shared/games/tycoon/types'
 
@@ -29,7 +30,7 @@ export interface RawEventBatch {
 
 export interface GameClientState {
   lobby: GameLobby | null
-  /** visão do jogo aberto: PokerView, GolfView, ChessView, CheckersView, TycoonView, TrucoView ou NavalView, conforme `lobby.gameId` */
+  /** visão do jogo aberto: PokerView, GolfView, ChessView, CheckersView, TycoonView, TrucoView, NavalView ou MysteryView, conforme `lobby.gameId` */
   view: unknown
   /** último lote de eventos recebido (a CENA anima a partir dele; o seq evita animar duas vezes) */
   lastEvents: RawEventBatch | null
@@ -129,6 +130,13 @@ export interface NavalSceneProps {
   onPlace: (ships: Placement[]) => void
   /** tiro (ou a rajada da salva); a SALA põe o `ref` */
   onShoot: (cells: Cell[]) => void
+}
+
+/** Mistério (HTML + pixel art): cartas, caderno de anotações e o palpite em andamento. */
+export interface MysterySceneProps {
+  view: MysteryView
+  reducedMotion: boolean
+  onAct: (action: MysteryAction) => void
 }
 
 // ---------------- ÁUDIO ----------------

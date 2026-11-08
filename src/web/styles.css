@@ -738,6 +738,51 @@ button.link:hover:not(:disabled) { --fg: var(--paper); }
 .nv-end span { color: var(--dust); }
 .nv-end .modal-actions { margin-left: auto; margin-top: 0; }
 @media (prefers-reduced-motion: reduce) { .nv-new { animation: none; } }
+
+/* Mistério: cartas, caderno de anotações e o palpite em andamento */
+.my-scene { position: relative; width: 100%; height: 100%; overflow: auto; background: var(--wall); display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 20px; padding: 16px; box-sizing: border-box; }
+.my-left, .my-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.my-left h3 { margin: 0; font-size: 16px; color: var(--dust); font-weight: 500; }
+.my-hand, .my-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.my-card { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 92px; padding: 0 0 8px; border-radius: 8px; background: var(--paper); color: var(--wall); border: 2px solid var(--rug); overflow: hidden; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); height: auto; }
+button.my-card { --bg: var(--paper); --bg-h: #fff; --bd: var(--rug); --bd-h: var(--lamp); --fg: var(--wall); }
+.my-card.small { width: 72px; padding-bottom: 6px; }
+.my-card.on { border-color: var(--lamp); box-shadow: 0 0 0 2px var(--lamp); }
+.my-card.dim { opacity: 0.45; }
+.my-band { align-self: stretch; text-align: center; font-size: 10px; font-weight: 700; color: var(--wall); padding: 2px 0; }
+.my-art { image-rendering: pixelated; }
+.my-cname { font-size: 12px; font-weight: 600; text-align: center; line-height: 1.1; padding: 0 4px; white-space: normal; overflow-wrap: anywhere; min-height: 2.2em; display: flex; align-items: center; }
+.my-card.small .my-cname { font-size: 11px; }
+.my-notes { border-collapse: collapse; font-size: 12px; width: 100%; }
+.my-notes th, .my-notes td { padding: 1px 3px; text-align: center; }
+.my-notes thead th { color: var(--dust); font-weight: 500; max-width: 48px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.my-notes thead th:first-child { text-align: left; color: var(--paper); }
+.my-notes-head th { text-align: left; color: var(--lamp); padding-top: 8px; font-weight: 600; }
+.my-notes tbody th[scope="row"] { text-align: left; font-weight: 500; white-space: nowrap; }
+.my-notes tr.out th[scope="row"] { color: var(--dust); text-decoration: line-through; }
+.my-notes tr.env th[scope="row"] { color: var(--lamp); }
+.my-mark { --bg: var(--sofa); --bg-h: var(--rug); --bd: var(--rug); width: 26px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
+.my-mark.tem { --fg: var(--on); }
+.my-mark.nao { --fg: var(--off); }
+.my-mark.talvez { --fg: var(--lamp); }
+.my-mark.auto { opacity: 1; cursor: default; --bg: var(--wall); }
+.my-players { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
+.my-players li { display: flex; flex-direction: column; padding: 6px 12px; border-radius: var(--r-ctl); background: var(--sofa); border: 1px solid var(--rug); }
+.my-players li.turn { border-color: var(--lamp); }
+.my-players li.showing { border-color: var(--on); }
+.my-players li.out { opacity: 0.5; }
+.my-players small { color: var(--dust); font-size: 11px; }
+.my-current, .my-pick { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--r-panel); background: var(--sofa); border: 1px solid var(--rug); }
+.my-current strong, .my-pick strong { color: var(--lamp); font-size: 16px; }
+.my-pick-row { display: flex; gap: 10px; align-items: flex-start; }
+.my-pick-label { width: 72px; flex: none; color: var(--dust); font-size: 13px; padding-top: 8px; }
+.my-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.my-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.my-history li { padding: 4px 8px; border-radius: var(--r-ctl); background: var(--sofa); }
+.my-history small { color: var(--dust); }
+.my-secret { font-size: 13px; color: var(--lamp); padding: 4px 10px; border-radius: var(--r-ctl); border: 1px dashed var(--lamp); }
+.my-end .my-row { justify-content: center; }
+@media (max-width: 900px) { .my-scene { grid-template-columns: 1fr; } }
 .hand-ex { color: var(--paper); }
 .hand-hint { grid-column: 2; color: var(--dust); font-size: 13px; }
 

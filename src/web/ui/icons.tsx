@@ -200,6 +200,12 @@ const PATHS = {
       <path d="M12 7v14M8 10h8M4.5 13a7.5 7.5 0 0 0 15 0" />
     </>
   ),
+  search: (
+    <>
+      <circle cx="10.5" cy="10.5" r="6" />
+      <path d="M15 15l5.5 5.5" />
+    </>
+  ),
   music: (
     <>
       <path d="M9 18V6l10-2v12" />

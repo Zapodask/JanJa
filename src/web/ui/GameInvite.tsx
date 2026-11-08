@@ -15,7 +15,10 @@ export function GameInvite({ gameId, openedBy, onSit, onLater }: Props) {
   const tycoon = gameId === 'tycoon'
   const truco = gameId === 'truco'
   const naval = gameId === 'naval'
-  const text = naval
+  const mystery = gameId === 'mystery'
+  const text = mystery
+    ? `${openedBy} chamou para resolver um Mistério`
+    : naval
     ? `${openedBy} chamou para uma Batalha naval`
     : truco
     ? `${openedBy} abriu uma mesa de Truco`
@@ -29,7 +32,7 @@ export function GameInvite({ gameId, openedBy, onSit, onLater }: Props) {
   return (
     <div className="game-invite" role="status">
       <span className="game-invite-icon">
-        <Icon name={naval ? 'anchor' : truco ? 'sword' : golf ? 'flag' : tycoon ? 'dice' : gameId === 'checkers' ? 'checker' : chess ? 'pawn' : 'cards'} size={20} />
+        <Icon name={mystery ? 'search' : naval ? 'anchor' : truco ? 'sword' : golf ? 'flag' : tycoon ? 'dice' : gameId === 'checkers' ? 'checker' : chess ? 'pawn' : 'cards'} size={20} />
       </span>
       <span className="game-invite-text">{text}</span>
       <button className="primary" onClick={onSit}>
