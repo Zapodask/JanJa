@@ -182,6 +182,12 @@ const PATHS = {
       <ellipse cx="12" cy="9" rx="4" ry="2" />
     </>
   ),
+  dice: (
+    <>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="3" />
+      <path d="M8.5 8.5h.01M15.5 8.5h.01M12 12h.01M8.5 15.5h.01M15.5 15.5h.01" strokeWidth="3" />
+    </>
+  ),
   music: (
     <>
       <path d="M9 18V6l10-2v12" />

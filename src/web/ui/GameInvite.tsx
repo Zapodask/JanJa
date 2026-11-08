@@ -12,19 +12,22 @@ interface Props {
 export function GameInvite({ gameId, openedBy, onSit, onLater }: Props) {
   const golf = gameId === 'golf'
   const chess = gameId === 'chess' || gameId === 'checkers'
+  const tycoon = gameId === 'tycoon'
   const text = golf
     ? `${openedBy} abriu uma partida de Golfe`
+    : tycoon
+      ? `${openedBy} abriu uma partida de Magnata`
     : chess
       ? `${openedBy} abriu uma partida de ${gameId === 'chess' ? 'Xadrez' : 'Damas'}`
       : `${openedBy} abriu uma mesa de Poker`
   return (
     <div className="game-invite" role="status">
       <span className="game-invite-icon">
-        <Icon name={golf ? 'flag' : gameId === 'checkers' ? 'checker' : chess ? 'pawn' : 'cards'} size={20} />
+        <Icon name={golf ? 'flag' : tycoon ? 'dice' : gameId === 'checkers' ? 'checker' : chess ? 'pawn' : 'cards'} size={20} />
       </span>
       <span className="game-invite-text">{text}</span>
       <button className="primary" onClick={onSit}>
-        {golf ? 'Entrar' : chess ? 'Jogar' : 'Sentar'}
+        {golf || tycoon ? 'Entrar' : chess ? 'Jogar' : 'Sentar'}
       </button>
       <button onClick={onLater}>Agora não</button>
     </div>

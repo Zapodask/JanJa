@@ -2,6 +2,7 @@ import { checkersGame } from './checkers'
 import { chessGame } from './chess'
 import { golfGame } from './golf'
 import { pokerGame } from './poker'
+import { tycoonGame } from './tycoon'
 import type { GameId } from './protocol'
 import type { AnyGame } from './types'
 
@@ -13,5 +14,6 @@ export const GAMES: GameRegistry = {
   poker: pokerGame,
   golf: golfGame,
   chess: chessGame,
-  checkers: checkersGame
+  checkers: checkersGame,
+  tycoon: tycoonGame
 }
