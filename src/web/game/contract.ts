@@ -9,6 +9,8 @@ import type { CheckersView } from '../../shared/games/checkers/types'
 import type { ChessView, Promo } from '../../shared/games/chess/types'
 import type { GolfView } from '../../shared/games/golf/types'
 import type { PokerEvent, PokerView } from '../../shared/games/poker/types'
+import type { Cell, Placement } from '../../shared/games/naval/fleet'
+import type { NavalView } from '../../shared/games/naval/types'
 import type { TrucoView } from '../../shared/games/truco/types'
 import type { TycoonView } from '../../shared/games/tycoon/types'
 
@@ -27,7 +29,7 @@ export interface RawEventBatch {
 
 export interface GameClientState {
   lobby: GameLobby | null
-  /** visão do jogo aberto: PokerView, GolfView, ChessView, CheckersView, TycoonView ou TrucoView, conforme `lobby.gameId` */
+  /** visão do jogo aberto: PokerView, GolfView, ChessView, CheckersView, TycoonView, TrucoView ou NavalView, conforme `lobby.gameId` */
   view: unknown
   /** último lote de eventos recebido (a CENA anima a partir dele; o seq evita animar duas vezes) */
   lastEvents: RawEventBatch | null
@@ -117,6 +119,16 @@ export interface TrucoSceneProps {
   lastEvents: RawEventBatch | null
   reducedMotion: boolean
   onPlay: (card: string) => void
+}
+
+/** Batalha naval (SVG em pixel art): o seu mar e o do outro. */
+export interface NavalSceneProps {
+  view: NavalView
+  reducedMotion: boolean
+  /** frota pronta (a SALA manda para o servidor) */
+  onPlace: (ships: Placement[]) => void
+  /** tiro (ou a rajada da salva); a SALA põe o `ref` */
+  onShoot: (cells: Cell[]) => void
 }
 
 // ---------------- ÁUDIO ----------------

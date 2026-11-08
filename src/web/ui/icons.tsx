@@ -201,6 +201,12 @@ const PATHS = {
       <path d="M7 14l3 3M4 17l3 3M5.5 18.5l-2 2" />
     </>
   ),
+  anchor: (
+    <>
+      <circle cx="12" cy="5" r="2" />
+      <path d="M12 7v14M8 10h8M4.5 13a7.5 7.5 0 0 0 15 0" />
+    </>
+  ),
   music: (
     <>
       <path d="M9 18V6l10-2v12" />
