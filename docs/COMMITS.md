@@ -51,6 +51,7 @@ chore(release): helper 0.1.3
 | `golfe` | mini-golfe 3D: física, mapas, cena, HUD |
 | `xadrez` | xadrez: regras, relógio, tabuleiro, HUD |
 | `damas` | damas: regras, tabuleiro, HUD |
+| `magnata` | Magnata: regras, tabuleiro, cartas, HUD |
 | `tour` | tour guiado |
 | `jan` | o mascote Jan |
 | `ui` | visual geral, tela inicial, componentes |

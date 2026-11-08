@@ -5,6 +5,7 @@ import { MAPS } from '../../shared/games/golf/maps'
 import { DEFAULT_GOLF_OPTIONS, type GolfOptions, type HoleSeconds } from '../../shared/games/golf/types'
 import { DEFAULT_OPTIONS, type PokerOptions } from '../../shared/games/poker/types'
 import type { GameId, GameLobby } from '../../shared/games/protocol'
+import { DEFAULT_TYCOON_OPTIONS, type TycoonMinutes, type TycoonOptions } from '../../shared/games/tycoon/types'
 import { Avatar } from './Avatar'
 import { Dropdown, type DropdownOption } from './Dropdown'
 import { Icon } from './icons'
@@ -30,10 +31,24 @@ const GAMES: DropdownOption[] = [
   { value: 'poker', label: 'Poker', sub: 'De 2 a 8 pessoas, uma de cada vez', icon: 'cards' },
   { value: 'golf', label: 'Golfe', sub: 'Mini-golfe em 3D, todo mundo joga junto', icon: 'flag' },
   { value: 'chess', label: 'Xadrez', sub: 'Duas pessoas, com relógio', icon: 'pawn' },
-  { value: 'checkers', label: 'Damas', sub: 'Duas pessoas, regras brasileiras', icon: 'checker' }
+  { value: 'checkers', label: 'Damas', sub: 'Duas pessoas, regras brasileiras', icon: 'checker' },
+  { value: 'tycoon', label: 'Magnata', sub: 'Compre cidades e quebre os amigos, de 2 a 6', icon: 'dice' }
 ]
 
-const GAME_ICON: Record<GameId, 'cards' | 'flag' | 'pawn' | 'checker'> = { poker: 'cards', golf: 'flag', chess: 'pawn', checkers: 'checker' }
+const GAME_ICON: Record<GameId, 'cards' | 'flag' | 'pawn' | 'checker' | 'dice'> = {
+  poker: 'cards',
+  golf: 'flag',
+  chess: 'pawn',
+  checkers: 'checker',
+  tycoon: 'dice'
+}
+
+const TYCOON_TIME: DropdownOption[] = [
+  { value: '15', label: '15 minutos', sub: 'Partida curta', icon: 'clock' },
+  { value: '25', label: '25 minutos', sub: 'Padrão', icon: 'clock' },
+  { value: '40', label: '40 minutos', icon: 'clock' },
+  { value: '0', label: 'Sem limite', sub: 'Até alguém vencer', icon: 'clock' }
+]
 
 const CLOCKS: DropdownOption[] = [
   { value: '5', label: '5 minutos', sub: 'Para cada um, rápido', icon: 'clock' },
@@ -88,13 +103,17 @@ function chessLabel(o: ChessOptions): string {
   return o.minutes === 0 ? 'sem relógio' : `${o.minutes} minutos para cada um`
 }
 
-const TITLES: Record<GameId, string> = { poker: 'Mesa de Poker', golf: 'Golfe', chess: 'Xadrez', checkers: 'Damas' }
+const TITLES: Record<GameId, string> = { poker: 'Mesa de Poker', golf: 'Golfe', chess: 'Xadrez', checkers: 'Damas', tycoon: 'Magnata' }
 export const gameTitle = (id: GameId): string => TITLES[id]
 
 function lobbyLabel(lobby: GameLobby): string {
   if (lobby.gameId === 'golf') return golfLabel(lobby.options as GolfOptions)
   if (lobby.gameId === 'chess') return chessLabel(lobby.options as ChessOptions)
   if (lobby.gameId === 'checkers') return chessLabel(lobby.options as CheckersOptions)
+  if (lobby.gameId === 'tycoon') {
+    const m = (lobby.options as TycoonOptions).minutes
+    return m ? `até ${m} minutos` : 'sem limite de tempo'
+  }
   return pokerLabel(lobby.options as PokerOptions)
 }
 
@@ -105,6 +124,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
   const [golf, setGolf] = useState<GolfOptions>(DEFAULT_GOLF_OPTIONS)
   const [chess, setChess] = useState<ChessOptions>(DEFAULT_CHESS_OPTIONS)
   const [checkers, setCheckers] = useState<CheckersOptions>(DEFAULT_CHECKERS_OPTIONS)
+  const [tycoon, setTycoon] = useState<TycoonOptions>(DEFAULT_TYCOON_OPTIONS)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -115,10 +135,11 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
   }, [onClose])
 
   const mine = lobby?.seats.find((s) => s.you)
-  const isGolf = lobby?.gameId === 'golf'
+  // golfe e Magnata falam em "entrar na partida"; os jogos de mesa, em "sentar"
+  const joins = lobby?.gameId === 'golf' || lobby?.gameId === 'tycoon'
   const isChess = lobby?.gameId === 'chess' || lobby?.gameId === 'checkers'
   const label = lobby ? lobbyLabel(lobby) : ''
-  const where = isGolf || isChess ? 'a partida' : 'a mesa'
+  const where = joins || isChess ? 'a partida' : 'a mesa'
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -140,7 +161,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                   ariaLabel="Jogo"
                   value={pick}
                   options={GAMES}
-                  onChange={(v) => setPick(v === 'golf' || v === 'chess' || v === 'checkers' ? v : 'poker')}
+                  onChange={(v) => setPick(v === 'golf' || v === 'chess' || v === 'checkers' || v === 'tycoon' ? v : 'poker')}
                 />
               </div>
             </div>
@@ -180,6 +201,25 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                       value={poker.buy}
                       options={BUYS}
                       onChange={(v) => setPoker({ ...poker, buy: v === 'torneio' ? 'torneio' : 'recompra' })}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : pick === 'tycoon' ? (
+              <>
+                <p className="muted games-lead">
+                  Jogo rápido de comprar cidades para 2 a 6 pessoas. Construa na hora, cobre aluguel e compre a cidade dos outros.
+                  Vence quem fechar três grupos, um lado inteiro ou as quatro praias, ou quem sobrar sem quebrar.
+                </p>
+                <div className="games-options">
+                  <div className="games-opt">
+                    <span>Duração</span>
+                    <Dropdown
+                      icon="clock"
+                      ariaLabel="Duração da partida"
+                      value={String(tycoon.minutes)}
+                      options={TYCOON_TIME}
+                      onChange={(v) => setTycoon({ minutes: ([0, 15, 25, 40].includes(Number(v)) ? Number(v) : 25) as TycoonMinutes })}
                     />
                   </div>
                 </div>
@@ -256,7 +296,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
             )}
             <div className="modal-actions">
               <button onClick={onClose}>Agora não</button>
-              <button className="primary" onClick={() => api.open(pick, pick === 'golf' ? golf : pick === 'chess' ? chess : pick === 'checkers' ? checkers : poker)}>
+              <button className="primary" onClick={() => api.open(pick, pick === 'golf' ? golf : pick === 'chess' ? chess : pick === 'checkers' ? checkers : pick === 'tycoon' ? tycoon : poker)}>
                 {pick === 'poker' ? 'Abrir mesa' : 'Abrir partida'}
               </button>
             </div>
@@ -269,7 +309,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
             <div className="modal-actions">
               {lobby.canManage && (
                 <button className="danger" onClick={api.close}>
-                  {isGolf || isChess ? 'Encerrar partida' : 'Encerrar mesa'}
+                  {joins || isChess ? 'Encerrar partida' : 'Encerrar mesa'}
                 </button>
               )}
               {hasView && (
@@ -280,7 +320,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                     onClose()
                   }}
                 >
-                  {isGolf ? 'Ver o campo' : isChess ? 'Ver o tabuleiro' : 'Ver a mesa'}
+                  {lobby.gameId === 'golf' ? 'Ver o campo' : lobby.gameId === 'poker' ? 'Ver a mesa' : 'Ver o tabuleiro'}
                 </button>
               )}
             </div>
@@ -307,7 +347,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                     ) : (
                       <button className="seat-free" onClick={() => api.sit(i)}>
                         <span className="seat-empty" aria-hidden="true" />
-                        {isGolf ? `Vaga ${i + 1} livre` : `Cadeira ${i + 1} livre`}
+                        {joins ? `Vaga ${i + 1} livre` : `Cadeira ${i + 1} livre`}
                       </button>
                     )}
                   </li>
@@ -316,7 +356,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
             </ul>
             {lobby.seats.length < lobby.minPlayers && (
               <p className="small muted">
-                Precisa de pelo menos {lobby.minPlayers} {lobby.minPlayers === 1 ? 'pessoa' : 'pessoas'} {isGolf ? 'na partida' : 'sentadas'} para começar.
+                Precisa de pelo menos {lobby.minPlayers} {lobby.minPlayers === 1 ? 'pessoa' : 'pessoas'} {joins ? 'na partida' : 'sentadas'} para começar.
               </p>
             )}
             <div className="modal-actions">
@@ -326,9 +366,9 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                 </button>
               )}
               {mine ? (
-                <button onClick={api.stand}>{isGolf ? 'Sair da partida' : 'Levantar'}</button>
+                <button onClick={api.stand}>{joins ? 'Sair da partida' : 'Levantar'}</button>
               ) : (
-                <button onClick={() => api.sit()}>{isGolf ? 'Entrar' : 'Sentar'}</button>
+                <button onClick={() => api.sit()}>{joins ? 'Entrar' : 'Sentar'}</button>
               )}
               {lobby.canManage && (
                 <button className="primary" disabled={lobby.seats.length < lobby.minPlayers} onClick={api.start}>

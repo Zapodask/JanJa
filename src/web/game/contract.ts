@@ -9,6 +9,7 @@ import type { CheckersView } from '../../shared/games/checkers/types'
 import type { ChessView, Promo } from '../../shared/games/chess/types'
 import type { GolfView } from '../../shared/games/golf/types'
 import type { PokerEvent, PokerView } from '../../shared/games/poker/types'
+import type { TycoonView } from '../../shared/games/tycoon/types'
 
 // ---------------- estado do jogo no cliente (SALA produz, CENA e ÁUDIO consomem) ----------------
 
@@ -25,7 +26,7 @@ export interface RawEventBatch {
 
 export interface GameClientState {
   lobby: GameLobby | null
-  /** visão do jogo aberto: PokerView, GolfView, ChessView ou CheckersView, conforme `lobby.gameId` */
+  /** visão do jogo aberto: PokerView, GolfView, ChessView, CheckersView ou TycoonView, conforme `lobby.gameId` */
   view: unknown
   /** último lote de eventos recebido (a CENA anima a partir dele; o seq evita animar duas vezes) */
   lastEvents: RawEventBatch | null
@@ -97,6 +98,15 @@ export interface CheckersSceneProps {
   reducedMotion: boolean
   /** lance escolhido: o caminho em casas, ex.: ["c3", "e5", "g7"] */
   onMove: (path: string[]) => void
+}
+
+/** Tabuleiro do Magnata (HTML + pixel art em SVG). As telas ficam em miniatura no canto. */
+export interface TycoonSceneProps {
+  view: TycoonView
+  /** sem `colors`: cada jogador tem cor própria pela ordem de jogo (PLAYER_COLORS), para não repetir */
+  reducedMotion: boolean
+  /** clique numa casa quando o jogo pede para escolher (festival, avião) */
+  onPick: (tile: number) => void
 }
 
 // ---------------- ÁUDIO ----------------

@@ -3,6 +3,7 @@ import { rankName, rankValue, SUIT_NAME, suitOf } from '../../shared/games/poker
 import type { CheckersEvent } from '../../shared/games/checkers/types'
 import type { ChessEvent } from '../../shared/games/chess/types'
 import type { GolfEvent } from '../../shared/games/golf/types'
+import type { TycoonEvent } from '../../shared/games/tycoon/types'
 import type { Card, LegalAction, PokerAction, PokerEvent, PokerMode, PokerView } from '../../shared/games/poker/types'
 import type { MusicTrack, Rect, SfxName } from './contract'
 
@@ -171,6 +172,40 @@ export function checkersTrackForEvent(ev: CheckersEvent): MusicTrack | null {
   if (ev.type === 'start') return 'calma'
   if (ev.type === 'end') return 'vitoria'
   if (ev.type === 'move' && ev.captures >= 2) return 'tensao'
+  return null
+}
+
+/** Som de um evento do Magnata: dados, fichas para dinheiro, carta virando e o fim. */
+export function tycoonSfxForEvent(ev: TycoonEvent): SfxCue | null {
+  switch (ev.type) {
+    case 'roll':
+      return { name: 'shuffle' }
+    case 'buy':
+    case 'build':
+      return { name: 'chip', count: 1 + ev.level }
+    case 'pay':
+      return ev.why === 'aluguel' ? { name: 'chip', count: 3 } : null
+    case 'takeover':
+      return { name: 'allin' }
+    case 'card':
+      return { name: 'flip' }
+    case 'jam':
+      return { name: 'check' }
+    case 'salary':
+      return { name: 'rebuy' }
+    case 'bankrupt':
+      return { name: 'fold' }
+    case 'end':
+      return { name: 'podium' }
+    default:
+      return null
+  }
+}
+
+export function tycoonTrackForEvent(ev: TycoonEvent): MusicTrack | null {
+  if (ev.type === 'start') return 'calma'
+  if (ev.type === 'takeover' || ev.type === 'bankrupt') return 'tensao'
+  if (ev.type === 'end') return 'vitoria'
   return null
 }
 

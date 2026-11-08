@@ -1,7 +1,7 @@
 /**
- * Pontos de carga lazy dos jogos: Pixi, GSAP, Three.js, os tabuleiros do xadrez e das damas e o áudio só entram no bundle quando um jogo abre.
+ * Pontos de carga lazy dos jogos: Pixi, GSAP, Three.js, os tabuleiros (xadrez, damas, Magnata) e o áudio só entram no bundle quando um jogo abre.
  */
-import type { CheckersSceneProps, ChessSceneProps, GameAudio, GolfSceneProps, PokerSceneProps } from './contract'
+import type { CheckersSceneProps, ChessSceneProps, GameAudio, GolfSceneProps, PokerSceneProps, TycoonSceneProps } from './contract'
 import type { ComponentType } from 'react'
 
 export const loadScene = (): Promise<{ default: ComponentType<PokerSceneProps> }> =>
@@ -18,5 +18,9 @@ export const loadChessScene = (): Promise<{ default: ComponentType<ChessScenePro
 /** tabuleiro das damas (SVG, sem biblioteca de desenho) */
 export const loadCheckersScene = (): Promise<{ default: ComponentType<CheckersSceneProps> }> =>
   import('./checkers/scene').then((m) => ({ default: m.CheckersScene }))
+
+/** tabuleiro do Magnata (HTML e SVG, sem biblioteca de desenho) */
+export const loadTycoonScene = (): Promise<{ default: ComponentType<TycoonSceneProps> }> =>
+  import('./tycoon/scene').then((m) => ({ default: m.TycoonScene }))
 
 export const loadAudio = (): Promise<() => GameAudio> => import('./audio').then((m) => () => m.createGameAudio())
