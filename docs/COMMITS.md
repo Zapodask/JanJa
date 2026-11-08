@@ -50,6 +50,7 @@ chore(release): helper 0.1.3
 | `poker` | mesa de poker: regras, cena, música, HUD |
 | `golfe` | mini-golfe 3D: física, mapas, cena, HUD |
 | `xadrez` | xadrez: regras, relógio, tabuleiro, HUD |
+| `damas` | damas: regras, tabuleiro, HUD |
 | `tour` | tour guiado |
 | `jan` | o mascote Jan |
 | `ui` | visual geral, tela inicial, componentes |

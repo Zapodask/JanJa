@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAudioLevel } from '../audio'
+import type { CheckersEvent } from '../../shared/games/checkers/types'
 import type { ChessEvent } from '../../shared/games/chess/types'
 import type { GolfEvent } from '../../shared/games/golf/types'
 import type { PokerEvent } from '../../shared/games/poker/types'
 import type { GameId } from '../../shared/games/protocol'
 import type { GameAudio, MusicTrack, RawEventBatch, SfxName } from './contract'
 import {
+  checkersSfxForEvent,
+  checkersTrackForEvent,
   chessSfxForEvent,
   chessTrackForEvent,
   duckFromLevel,
@@ -27,12 +30,14 @@ export interface MicProbe {
 function cueFor(gameId: GameId, ev: unknown): SfxCue | null {
   if (gameId === 'golf') return golfSfxForEvent(ev as GolfEvent)
   if (gameId === 'chess') return chessSfxForEvent(ev as ChessEvent)
+  if (gameId === 'checkers') return checkersSfxForEvent(ev as CheckersEvent)
   return sfxForEvent(ev as PokerEvent)
 }
 
 function trackFor(gameId: GameId, ev: unknown): MusicTrack | null {
   if (gameId === 'golf') return golfTrackForEvent(ev as GolfEvent)
   if (gameId === 'chess') return chessTrackForEvent(ev as ChessEvent)
+  if (gameId === 'checkers') return checkersTrackForEvent(ev as CheckersEvent)
   return trackForEvent(ev as PokerEvent)
 }
 

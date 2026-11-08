@@ -8,7 +8,7 @@
  *   }
  *
  * Laboratórios: /dev/audio, /dev/poker (SceneLab), /dev/golf (GolfLab, o motor do golfe rodando local)
- * e /dev/chess (ChessLab, o motor do xadrez com um bot de lances aleatórios).
+ * /dev/chess (ChessLab) e /dev/checkers (CheckersLab): xadrez e damas locais, com um bot de lances aleatórios.
  */
 import type { ComponentType } from 'react'
 
@@ -21,5 +21,6 @@ export const DEV_ROUTES: DevRoute[] = [
   { path: '/dev/audio', load: () => import('./AudioLab') },
   { path: '/dev/poker', load: () => import('./SceneLab').then((m) => ({ default: m.SceneLab })) },
   { path: '/dev/golf', load: () => import('./GolfLab').then((m) => ({ default: m.GolfLab })) },
-  { path: '/dev/chess', load: () => import('./ChessLab').then((m) => ({ default: m.ChessLab })) }
+  { path: '/dev/chess', load: () => import('./ChessLab').then((m) => ({ default: m.ChessLab })) },
+  { path: '/dev/checkers', load: () => import('./CheckersLab').then((m) => ({ default: m.CheckersLab })) }
 ]

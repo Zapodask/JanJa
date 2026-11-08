@@ -1,18 +1,14 @@
 import '@fontsource-variable/pixelify-sans'
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
 import { colorOf, typeOf, type Color, type PieceType, type Promo } from '../../../../shared/games/chess/rules'
-import type { ChessPlayerView } from '../../../../shared/games/chess/types'
 import type { ChessSceneProps } from '../../contract'
-import { formatClock } from '../../helpers'
-import { useServerNow } from '../../useServerNow'
+import { DuelFrame } from '../../duel/DuelFrame'
 import { PIECE_SIZE, pieceRuns } from './pieces'
 
 const CELL = PIECE_SIZE
 const BOARD = CELL * 8
 const LIGHT = '#C9B79C'
 const DARK = '#8C6E58'
-/** altura de cada placa de jogador (px CSS) */
-const PLATE = 44
 
 const FILES = 'abcdefgh'
 const NAME: Record<PieceType, [string, boolean]> = {
@@ -55,40 +51,6 @@ function PieceIcon({ p, size }: { p: string; size: number }) {
   )
 }
 
-interface PlateProps {
-  player: ChessPlayerView
-  color: Color
-  tone: string
-  clock: number | null
-  active: boolean
-  captured: string[]
-  you: boolean
-}
-
-function Plate({ player, color, tone, clock, active, captured, you }: PlateProps) {
-  const low = clock !== null && clock < 20_000
-  return (
-    <div className={`chess-plate ${active ? 'active' : ''}`} style={{ height: PLATE }}>
-      <i className="golf-dot" style={{ background: tone }} aria-hidden="true" />
-      <span className="chess-plate-name">
-        {player.name}
-        {you ? ' (você)' : ''}
-        <small className="detail">{player.away ? 'fora da sala' : color === 'w' ? 'brancas' : 'pretas'}</small>
-      </span>
-      <span className="chess-captured" aria-label={captured.length ? `Capturou: ${captured.map(pieceName).join(', ')}` : undefined}>
-        {captured.map((p, i) => (
-          <PieceIcon key={i} p={p} size={20} />
-        ))}
-      </span>
-      {clock !== null && (
-        <span className={`chess-clock pixel-font ${active ? 'on' : ''} ${low ? 'low' : ''}`} aria-label={`Relógio de ${player.name}: ${formatClock(clock)}`}>
-          {formatClock(clock)}
-        </span>
-      )}
-    </div>
-  )
-}
-
 const ORDER: PieceType[] = ['q', 'r', 'b', 'n', 'p']
 const sortCaptured = (xs: string[]): string[] => [...xs].sort((a, b) => ORDER.indexOf(typeOf(a)) - ORDER.indexOf(typeOf(b)))
 
@@ -96,9 +58,7 @@ const sortCaptured = (xs: string[]): string[] => [...xs].sort((a, b) => ORDER.in
 export function ChessScene({ view, colors, reducedMotion, onMove }: ChessSceneProps) {
   const flip = view.you?.color === 'b'
   const myTurn = !!view.you && view.turn === view.you.color && !view.result
-  const hostRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
-  const [size, setSize] = useState(320)
   const [sel, setSel] = useState<string | null>(null)
   const [cursor, setCursor] = useState(flip ? 'e7' : 'e2')
   const [focused, setFocused] = useState(false)
@@ -106,17 +66,6 @@ export function ChessScene({ view, colors, reducedMotion, onMove }: ChessScenePr
   const [promo, setPromo] = useState<{ from: string; to: string } | null>(null)
   /** lance que eu soltei arrastando: não anima de novo */
   const dropped = useRef<string | null>(null)
-  const now = useServerNow(view.serverNow, 250)
-
-  useLayoutEffect(() => {
-    const el = hostRef.current
-    if (!el) return
-    const fit = () => setSize(Math.max(160, Math.floor(Math.min(el.clientWidth - 32, el.clientHeight - 2 * PLATE - 32))))
-    const ro = new ResizeObserver(fit)
-    ro.observe(el)
-    fit()
-    return () => ro.disconnect()
-  }, [])
 
   useEffect(() => {
     setSel(null)
@@ -196,31 +145,8 @@ export function ChessScene({ view, colors, reducedMotion, onMove }: ChessScenePr
     }
   }
 
-  // relógios andando
-  const clockOf = (c: Color): number | null => {
-    if (!view.clock) return null
-    const running = !view.result && view.turn === c
-    return Math.max(0, view.clock[c] - (running ? now - view.serverNow : 0))
-  }
   // a cor da peça capturada diz quem capturou
   const captured = (by: Color) => sortCaptured(view.moves.flatMap((m) => (m.captured && colorOf(m.captured) !== by ? [m.captured] : [])))
-
-  const bottom: Color = flip ? 'b' : 'w'
-  const top: Color = bottom === 'w' ? 'b' : 'w'
-  const plate = (c: Color) => {
-    const pl = c === 'w' ? view.white : view.black
-    return (
-      <Plate
-        player={pl}
-        color={c}
-        tone={colors[pl.playerId] ?? '#B7A99A'}
-        clock={clockOf(c)}
-        active={!view.result && view.turn === c}
-        captured={captured(c)}
-        you={view.you?.color === c}
-      />
-    )
-  }
 
   const last = view.lastMove
   const slideKey = view.moves.length
@@ -233,10 +159,22 @@ export function ChessScene({ view, colors, reducedMotion, onMove }: ChessScenePr
   const youLabel = view.you ? `Você joga de ${view.you.color === 'w' ? 'brancas' : 'pretas'}.` : 'Você está assistindo.'
 
   return (
-    <div className="chess-scene" ref={hostRef}>
-      <div className="chess-stack" style={{ width: size }}>
-        {plate(top)}
-        <div className="chess-board-wrap" style={{ width: size, height: size }}>
+    <DuelFrame
+      view={view}
+      colors={colors}
+      captured={(c) => {
+        const xs = captured(c)
+        return (
+          <span className="chess-captured-list" aria-label={xs.length ? `Capturou: ${xs.map(pieceName).join(', ')}` : undefined}>
+            {xs.map((p, i) => (
+              <PieceIcon key={i} p={p} size={20} />
+            ))}
+          </span>
+        )
+      }}
+    >
+      {(size) => (
+        <>
           <svg
             ref={svgRef}
             className={`chess-board ${myTurn ? 'my-turn' : ''}`}
@@ -334,10 +272,9 @@ export function ChessScene({ view, colors, reducedMotion, onMove }: ChessScenePr
               onCancel={() => setPromo(null)}
             />
           )}
-        </div>
-        {plate(bottom)}
-      </div>
-    </div>
+        </>
+      )}
+    </DuelFrame>
   )
 }
 

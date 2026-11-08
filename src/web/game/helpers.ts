@@ -1,5 +1,6 @@
 /** Funções puras da SALA do jogo: botões, atalhos, sons, textos. Sem React nem DOM (testáveis em Node). */
 import { rankName, rankValue, SUIT_NAME, suitOf } from '../../shared/games/poker/cards'
+import type { CheckersEvent } from '../../shared/games/checkers/types'
 import type { ChessEvent } from '../../shared/games/chess/types'
 import type { GolfEvent } from '../../shared/games/golf/types'
 import type { Card, LegalAction, PokerAction, PokerEvent, PokerMode, PokerView } from '../../shared/games/poker/types'
@@ -146,6 +147,30 @@ export function chessTrackForEvent(ev: ChessEvent): MusicTrack | null {
   if (ev.type === 'start') return 'calma'
   if (ev.type === 'end') return 'vitoria'
   if (ev.type === 'move' && ev.check) return 'tensao'
+  return null
+}
+
+/** Som de um evento das damas: toque da pedra, capturas (uma ficha por peça), dama nova e o fim. */
+export function checkersSfxForEvent(ev: CheckersEvent): SfxCue | null {
+  switch (ev.type) {
+    case 'start':
+      return { name: 'shuffle' }
+    case 'move':
+      if (ev.promote) return { name: 'win' }
+      return ev.captures ? { name: 'chip', count: ev.captures } : { name: 'putt' }
+    case 'draw-offer':
+      return { name: 'check' }
+    case 'end':
+      return ev.result.winner ? { name: 'podium' } : { name: 'win' }
+    default:
+      return null
+  }
+}
+
+export function checkersTrackForEvent(ev: CheckersEvent): MusicTrack | null {
+  if (ev.type === 'start') return 'calma'
+  if (ev.type === 'end') return 'vitoria'
+  if (ev.type === 'move' && ev.captures >= 2) return 'tensao'
   return null
 }
 

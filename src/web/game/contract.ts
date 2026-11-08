@@ -5,6 +5,7 @@
  * - ÁUDIO: música chiptune e efeitos, gerados em Web Audio.
  */
 import type { GameLobby } from '../../shared/games/protocol'
+import type { CheckersView } from '../../shared/games/checkers/types'
 import type { ChessView, Promo } from '../../shared/games/chess/types'
 import type { GolfView } from '../../shared/games/golf/types'
 import type { PokerEvent, PokerView } from '../../shared/games/poker/types'
@@ -24,7 +25,7 @@ export interface RawEventBatch {
 
 export interface GameClientState {
   lobby: GameLobby | null
-  /** visão do jogo aberto: PokerView, GolfView ou ChessView, conforme `lobby.gameId` */
+  /** visão do jogo aberto: PokerView, GolfView, ChessView ou CheckersView, conforme `lobby.gameId` */
   view: unknown
   /** último lote de eventos recebido (a CENA anima a partir dele; o seq evita animar duas vezes) */
   lastEvents: RawEventBatch | null
@@ -87,6 +88,15 @@ export interface ChessSceneProps {
   reducedMotion: boolean
   /** lance escolhido (a SALA manda para o servidor) */
   onMove: (from: string, to: string, promo?: Promo) => void
+}
+
+/** Tabuleiro das damas (SVG em pixel art), no mesmo molde do xadrez. */
+export interface CheckersSceneProps {
+  view: CheckersView
+  colors: Record<string, string>
+  reducedMotion: boolean
+  /** lance escolhido: o caminho em casas, ex.: ["c3", "e5", "g7"] */
+  onMove: (path: string[]) => void
 }
 
 // ---------------- ÁUDIO ----------------

@@ -1,3 +1,4 @@
+import { checkersGame } from './checkers'
 import { chessGame } from './chess'
 import { golfGame } from './golf'
 import { pokerGame } from './poker'
@@ -11,5 +12,6 @@ export type GameRegistry = Partial<Record<GameId, AnyGame>>
 export const GAMES: GameRegistry = {
   poker: pokerGame,
   golf: golfGame,
-  chess: chessGame
+  chess: chessGame,
+  checkers: checkersGame
 }
