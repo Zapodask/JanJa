@@ -2,11 +2,13 @@
 import '@fontsource-variable/archivo/wdth.css'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
+import { animateFavicon } from './favicon'
 import { watchInstall } from './install'
 import './styles.css'
 
 // o aviso de "pode instalar" chega cedo: escuta antes de montar a página
 watchInstall()
+animateFavicon()
 
 const root = createRoot(document.getElementById('root')!)
 

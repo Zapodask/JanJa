@@ -1,13 +1,15 @@
 /**
  * Gera os ícones do app (PWA) em public/icons/ a partir da TV pixel de src/web/ui/pixelData.ts:
  * a TV ligada, centralizada no fundo café, com margem para o recorte redondo (maskable).
+ * Também gera public/favicon.svg: Jan fazendo o L, parado (o site anima o favicon em src/web/favicon.ts).
  * Uso: npm run icons
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PNG } from 'pngjs'
-import { PALETTE, SIZE, TV_FRAMES } from '../src/web/ui/pixelData'
+import { FAVICON_STILL } from '../src/web/favicon'
+import { iconSvg, PALETTE, POSES, SIZE, TV_FRAMES } from '../src/web/ui/pixelData'
 
 const WALL = '#221C19'
 const OUT = resolve(fileURLToPath(new URL('.', import.meta.url)), '../public/icons')
@@ -46,3 +48,7 @@ for (const size of [192, 512]) {
   writeFileSync(file, render(size))
   console.log('gerado', file)
 }
+
+const favicon = resolve(OUT, '../favicon.svg')
+writeFileSync(favicon, iconSvg(POSES.ell.frames[FAVICON_STILL]) + '\n')
+console.log('gerado', favicon)
