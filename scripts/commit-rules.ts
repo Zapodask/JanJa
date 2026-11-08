@@ -40,6 +40,7 @@ export const SCOPES = {
   tiro: 'Tiro na Sala: simulação, rede, mapas, cena, HUD',
   truco: 'truco gaudério: regras, mesa, HUD',
   naval: 'batalha naval: frota, tiros, mares, HUD',
+  misterio: 'Mistério: cartas, palpites, caderno, HUD',
   tour: 'tour guiado',
   jan: 'o mascote Jan',
   ui: 'visual geral, tela inicial, componentes',

@@ -4,6 +4,7 @@ import type { CheckersEvent } from '../../shared/games/checkers/types'
 import type { ChessEvent } from '../../shared/games/chess/types'
 import type { GolfEvent } from '../../shared/games/golf/types'
 import type { PokerEvent } from '../../shared/games/poker/types'
+import type { MysteryEvent } from '../../shared/games/mystery/types'
 import type { NavalEvent } from '../../shared/games/naval/types'
 import type { TrucoEvent } from '../../shared/games/truco/types'
 import type { TycoonEvent } from '../../shared/games/tycoon/types'
@@ -16,6 +17,8 @@ import {
   chessSfxForEvent,
   chessTrackForEvent,
   duckFromLevel,
+  mysterySfxForEvent,
+  mysteryTrackForEvent,
   navalSfxForEvent,
   navalTrackForEvent,
   golfSfxForEvent,
@@ -44,6 +47,7 @@ function cueFor(gameId: GameId, ev: unknown): SfxCue | null {
   if (gameId === 'tycoon') return tycoonSfxForEvent(ev as TycoonEvent)
   if (gameId === 'truco') return trucoSfxForEvent(ev as TrucoEvent)
   if (gameId === 'naval') return navalSfxForEvent(ev as NavalEvent)
+  if (gameId === 'mystery') return mysterySfxForEvent(ev as MysteryEvent)
   return sfxForEvent(ev as PokerEvent)
 }
 
@@ -54,6 +58,7 @@ function trackFor(gameId: GameId, ev: unknown): MusicTrack | null {
   if (gameId === 'tycoon') return tycoonTrackForEvent(ev as TycoonEvent)
   if (gameId === 'truco') return trucoTrackForEvent(ev as TrucoEvent)
   if (gameId === 'naval') return navalTrackForEvent(ev as NavalEvent)
+  if (gameId === 'mystery') return mysteryTrackForEvent(ev as MysteryEvent)
   return trackForEvent(ev as PokerEvent)
 }
 

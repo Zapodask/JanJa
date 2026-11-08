@@ -3,6 +3,7 @@ import { rankName, rankValue, SUIT_NAME, suitOf } from '../../shared/games/poker
 import type { CheckersEvent } from '../../shared/games/checkers/types'
 import type { ChessEvent } from '../../shared/games/chess/types'
 import type { GolfEvent } from '../../shared/games/golf/types'
+import type { MysteryEvent } from '../../shared/games/mystery/types'
 import type { NavalEvent } from '../../shared/games/naval/types'
 import type { TrucoEvent } from '../../shared/games/truco/types'
 import type { TycoonEvent } from '../../shared/games/tycoon/types'
@@ -258,6 +259,31 @@ export function navalSfxForEvent(ev: NavalEvent): SfxCue | null {
 export function navalTrackForEvent(ev: NavalEvent): MusicTrack | null {
   if (ev.type === 'battle') return 'calma'
   if (ev.type === 'shot' && ev.sunk.length) return 'tensao'
+  if (ev.type === 'end') return 'vitoria'
+  return null
+}
+
+/** Som de um evento do Mistério: palpite, carta mostrada, acusação e o fim. */
+export function mysterySfxForEvent(ev: MysteryEvent): SfxCue | null {
+  switch (ev.type) {
+    case 'start':
+      return { name: 'shuffle' }
+    case 'suggest':
+      return { name: 'turn' }
+    case 'shown':
+      return { name: 'flip' }
+    case 'none':
+      return { name: 'check' }
+    case 'accuse':
+      return ev.correct ? null : { name: 'fold' }
+    case 'end':
+      return { name: 'podium' }
+  }
+}
+
+export function mysteryTrackForEvent(ev: MysteryEvent): MusicTrack | null {
+  if (ev.type === 'start') return 'calma'
+  if (ev.type === 'accuse') return 'tensao'
   if (ev.type === 'end') return 'vitoria'
   return null
 }
