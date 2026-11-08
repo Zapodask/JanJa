@@ -6,6 +6,7 @@ import type { GolfEvent } from '../../shared/games/golf/types'
 import type { PokerEvent } from '../../shared/games/poker/types'
 import type { MysteryEvent } from '../../shared/games/mystery/types'
 import type { NavalEvent } from '../../shared/games/naval/types'
+import type { PoolEvent } from '../../shared/games/pool/types'
 import type { TrucoEvent } from '../../shared/games/truco/types'
 import type { TycoonEvent } from '../../shared/games/tycoon/types'
 import type { GameId } from '../../shared/games/protocol'
@@ -20,6 +21,8 @@ import {
   mysterySfxForEvent,
   mysteryTrackForEvent,
   navalSfxForEvent,
+  poolSfxForEvent,
+  poolTrackForEvent,
   navalTrackForEvent,
   golfSfxForEvent,
   golfTrackForEvent,
@@ -48,6 +51,7 @@ function cueFor(gameId: GameId, ev: unknown): SfxCue | null {
   if (gameId === 'truco') return trucoSfxForEvent(ev as TrucoEvent)
   if (gameId === 'naval') return navalSfxForEvent(ev as NavalEvent)
   if (gameId === 'mystery') return mysterySfxForEvent(ev as MysteryEvent)
+  if (gameId === 'pool') return poolSfxForEvent(ev as PoolEvent)
   return sfxForEvent(ev as PokerEvent)
 }
 
@@ -59,6 +63,7 @@ function trackFor(gameId: GameId, ev: unknown): MusicTrack | null {
   if (gameId === 'truco') return trucoTrackForEvent(ev as TrucoEvent)
   if (gameId === 'naval') return navalTrackForEvent(ev as NavalEvent)
   if (gameId === 'mystery') return mysteryTrackForEvent(ev as MysteryEvent)
+  if (gameId === 'pool') return poolTrackForEvent(ev as PoolEvent)
   return trackForEvent(ev as PokerEvent)
 }
 

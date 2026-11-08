@@ -5,6 +5,7 @@ import type { ChessEvent } from '../../shared/games/chess/types'
 import type { GolfEvent } from '../../shared/games/golf/types'
 import type { MysteryEvent } from '../../shared/games/mystery/types'
 import type { NavalEvent } from '../../shared/games/naval/types'
+import type { PoolEvent } from '../../shared/games/pool/types'
 import type { TrucoEvent } from '../../shared/games/truco/types'
 import type { TycoonEvent } from '../../shared/games/tycoon/types'
 import type { Card, LegalAction, PokerAction, PokerEvent, PokerMode, PokerView } from '../../shared/games/poker/types'
@@ -284,6 +285,29 @@ export function mysterySfxForEvent(ev: MysteryEvent): SfxCue | null {
 export function mysteryTrackForEvent(ev: MysteryEvent): MusicTrack | null {
   if (ev.type === 'start') return 'calma'
   if (ev.type === 'accuse') return 'tensao'
+  if (ev.type === 'end') return 'vitoria'
+  return null
+}
+
+/** Som de um evento da sinuca: tacada, falta e o fim (a bola na caçapa vem da cena). */
+export function poolSfxForEvent(ev: PoolEvent): SfxCue | null {
+  switch (ev.type) {
+    case 'start':
+      return { name: 'shuffle' }
+    case 'shot':
+      return { name: 'putt' }
+    case 'foul':
+      return { name: 'fold' }
+    case 'end':
+      return { name: 'podium' }
+    default:
+      return null
+  }
+}
+
+export function poolTrackForEvent(ev: PoolEvent): MusicTrack | null {
+  if (ev.type === 'start') return 'calma'
+  if (ev.type === 'groups') return 'tensao'
   if (ev.type === 'end') return 'vitoria'
   return null
 }
