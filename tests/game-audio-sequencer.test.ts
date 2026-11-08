@@ -150,6 +150,38 @@ describe('sequenciador', () => {
     expect(Math.max(...vNotes.map((n) => n.when))).toBeLessThan(h.changes[1]!.at)
   })
 
+  it('música de fundo reveza: calma inteira, depois cisnes inteira, depois calma de novo', () => {
+    const h = new FakeHost()
+    const s = new Sequencer(h)
+    s.start('calma')
+    const c = TRACKS.calma
+    const w = TRACKS.cisnes
+    const dc = barSeconds(c) * c.bars
+    const dw = barSeconds(w) * w.bars
+    run(s, h, dc + dw + 2)
+    expect(h.changes.map((x) => x.track)).toEqual(['calma', 'cisnes', 'calma'])
+    expect(h.changes[1]!.at - h.changes[0]!.at).toBeCloseTo(dc, 6)
+    expect(h.changes[2]!.at - h.changes[1]!.at).toBeCloseTo(dw, 6)
+    // a calma não dá uma segunda volta antes dos cisnes
+    const calmaNotes = h.notes.filter((n) => n.track === 'calma' && n.when < h.changes[2]!.at)
+    expect(Math.max(...calmaNotes.map((n) => n.when))).toBeLessThan(h.changes[1]!.at)
+  })
+
+  it('pedir a calma com os cisnes tocando não interrompe; pedir a tensão troca', () => {
+    const h = new FakeHost()
+    const s = new Sequencer(h)
+    s.start('cisnes')
+    run(s, h, 2)
+    s.setTrack('calma')
+    expect(s.queued).toBeUndefined()
+    run(s, h, barSeconds(TRACKS.cisnes) * 2)
+    expect(s.current).toBe('cisnes')
+    s.setTrack('tensao')
+    expect(s.queued).toBe('tensao')
+    run(s, h, barSeconds(TRACKS.cisnes) * 2)
+    expect(s.current).toBe('tensao')
+  })
+
   it('stop faz fade e silencia; start de novo recomeça', () => {
     const h = new FakeHost()
     const s = new Sequencer(h)

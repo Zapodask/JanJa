@@ -3,6 +3,8 @@
  * Grade de semicolcheias: 16 passos por compasso (4/4). Tudo é determinístico.
  *
  *  calma   Dó maior, 92 BPM, swing leve, 32 compassos (A, A', ponte, A'' esparso)
+ *  cisnes  Lá menor, 96 BPM, 16 compassos: o tema do Lago dos Cisnes (Tchaikovsky, 1876, domínio
+ *          público) em 8 bits. Reveza com a calma como música de fundo (`rotate`)
  *  tensao  Lá menor, 120 BPM, 16 compassos (dominante E7 com sol sustenido)
  *  vitoria Dó maior, 128 BPM, 16 compassos, toca 1 vez e volta para a calma
  *  tiroteio Ré menor harmônico, 150 BPM, 16 compassos (Tiro na Sala: partida rolando)
@@ -44,6 +46,8 @@ export interface TrackDef {
   /** toca uma vez e segue para `next` */
   once?: boolean
   next?: MusicTrack
+  /** música de fundo em revezamento: no fim de cada volta, passa para esta faixa (em vez de repetir) */
+  rotate?: MusicTrack
   /** classes de altura da escala usada (inclui notas de passagem permitidas) */
   scale: number[]
   duty: { lead: number; arp: number }
@@ -245,7 +249,7 @@ const PCS_A_MINOR_HARM = [9, 11, 0, 2, 4, 5, 7, 8] // lá menor natural + sol su
 
 // ----- calma: Dó maior, 92 BPM. Fmaj7-Em7-Dm7-Cmaj7 (e a ponte Am7-Dm7-G7) -----
 const calma = build(
-  { id: 'calma', bpm: 92, swing: 0.28, scale: PCS_C_MAJOR, duty: { lead: 0.25, arp: 0.125 }, cutoff: 4200, gain: 1 },
+  { id: 'calma', bpm: 92, swing: 0.28, rotate: 'cisnes', scale: PCS_C_MAJOR, duty: { lead: 0.25, arp: 0.125 }, cutoff: 4200, gain: 1 },
   [
     // A: pergunta (4 compassos) e resposta que termina no dominante
     {
@@ -524,7 +528,66 @@ const final = build(
   ]
 )
 
-export const TRACKS: Record<MusicTrack, TrackDef> = { calma, tensao, vitoria, tiroteio, final }
+// ----- cisnes: o tema do Lago dos Cisnes (Ato II), de si menor para lá menor, 96 BPM -----
+// O oboé vira pulso 50%; o tremolo das cordas vira arpejo de semicolcheias. Forma A A' B A''.
+const THEME = [
+  'E5/8 A4/2 B4/2 C5/2 D5/2', // fá#———, si dó# ré mi (no original)
+  'E5/5 -/1 C5/2 E5/5 -/1 C5/2',
+  'E5/6 A4/2 C5/2 A4/2 F4/2 C5/2'
+]
+const cisnes = build(
+  { id: 'cisnes', bpm: 96, swing: 0, rotate: 'calma', scale: PCS_A_MINOR_HARM, duty: { lead: 0.5, arp: 0.125 }, cutoff: 5200, gain: 0.95 },
+  [
+    // A: o tema sozinho sobre o tremolo, quase sem bateria
+    {
+      chords: ['Am', 'Am', 'FM7', 'Am'],
+      lead: [...THEME, 'A4/12 -/4'],
+      leadVel: 0.72,
+      arp: ARP_SIXTEENTH,
+      arpLen: 1,
+      arpVel: 0.2,
+      bass: BASS_LONG,
+      drums: D_BRIDGE
+    },
+    // A': de novo, com bumbo e caixa; termina no mi para abrir a parte B
+    {
+      chords: ['Am', 'Am', 'FM7', 'Am'],
+      lead: [...THEME, 'A4/8 -/4 E4/4'],
+      leadVel: 0.78,
+      arp: ARP_SIXTEENTH,
+      arpLen: 1,
+      arpVel: 0.24,
+      bass: BASS_A,
+      drums: D_LOFI_LIGHT
+    },
+    // B: sobe pela escala e cai no dominante (E7, com sol sustenido)
+    {
+      chords: ['Dm7', 'C', 'Dm7', 'E7'],
+      lead: ['D5/2 E5/2 F5/2 G5/2 A5/6 -/2', 'G5/2 F5/2 E5/4 C5/4 A4/2 -/2', 'F5/2 E5/2 D5/4 A4/2 B4/2 C5/2 D5/2', 'E5/8 -/2 B4/2 G#4/4'],
+      leadVel: 0.8,
+      arp: ARP_SIXTEENTH,
+      arpLen: 1,
+      arpVel: 0.26,
+      bass: BASS_B,
+      drums: D_TENSE,
+      fill: D_TENSE_FILL
+    },
+    // A'': o tema volta forte e fecha em lá
+    {
+      chords: ['Am', 'Am', 'FM7', 'Am'],
+      lead: [...THEME, 'A4/12 -/4'],
+      leadVel: 0.82,
+      arp: ARP_SIXTEENTH,
+      arpLen: 1,
+      arpVel: 0.26,
+      bass: BASS_A,
+      drums: D_LOFI_LIGHT,
+      fill: D_WIN_END
+    }
+  ]
+)
+
+export const TRACKS: Record<MusicTrack, TrackDef> = { calma, cisnes, tensao, vitoria, tiroteio, final }
 
 // ---------------- derivados ----------------
 

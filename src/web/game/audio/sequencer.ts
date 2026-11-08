@@ -75,10 +75,16 @@ export class Sequencer {
     this.host.changed?.(id, layer.startTime)
   }
 
-  /** troca no próximo compasso (a camada atual segue 1 compasso em fade-out) */
+  /**
+   * Troca no próximo compasso (a camada atual segue 1 compasso em fade-out).
+   * Pedir uma música de fundo (calma) enquanto outra do revezamento toca (cisnes) não troca:
+   * os jogos pedem a calma a cada rodada e o revezamento seguiria interrompido.
+   */
   setTrack(id: MusicTrack): void {
     if (!this.running || !this.active) return
-    this.pending = id === this.active.track.id ? undefined : id
+    const cur = this.active.track
+    const bothBackground = cur.rotate !== undefined && this.tracks[id].rotate !== undefined
+    this.pending = id === cur.id || bothBackground ? undefined : id
   }
 
   stop(fadeOut = 0.4): void {
@@ -136,11 +142,12 @@ export class Sequencer {
       if (l.done) continue
       const n = l.track.steps.length
       for (;;) {
-        // fim de uma faixa que toca uma vez: segue para a próxima no instante exato
-        if (l.cursor >= n && l.track.once) {
+        // fim de uma faixa que toca uma vez (ou que reveza): segue para a próxima no instante exato
+        const after = l.track.once ? (l.track.next ?? 'calma') : l.track.rotate
+        if (l.cursor >= n && after) {
           const tEnd = l.startTime + n * stepSeconds(l.track)
           if (tEnd >= horizon) break
-          if (l === this.active) this.switchAt(l.track.next ?? 'calma', tEnd, l)
+          if (l === this.active) this.switchAt(after, tEnd, l)
           l.done = true
           this.host.release(l.id, tEnd + 0.5)
           break

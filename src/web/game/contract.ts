@@ -160,7 +160,7 @@ export interface PoolSceneProps {
 
 // ---------------- ÁUDIO ----------------
 
-export type MusicTrack = 'calma' | 'tensao' | 'vitoria' | 'tiroteio' | 'final'
+export type MusicTrack = 'calma' | 'cisnes' | 'tensao' | 'vitoria' | 'tiroteio' | 'final'
 
 export interface GameAudio {
   /** liga a música (precisa de gesto do usuário antes; chame depois de um clique) */

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { CHORDS, STEPS_PER_BAR, TRACKS, parseBar, scoreText, trackSeconds, type TrackDef } from '../src/web/game/audio/songs'
 import { duckGain, duckTimeConstant, midiToHz, noteToMidi, pulseCoefficients, volumeToGain } from '../src/web/game/audio/notes'
 
-const ids = ['calma', 'tensao', 'vitoria'] as const
+const ids = ['calma', 'cisnes', 'tensao', 'vitoria'] as const
+/** tônica de cada faixa que fecha em repouso (classe de altura) */
+const TONIC: Record<string, number> = { calma: 0, vitoria: 0, cisnes: 9 }
 
 /** semitom entre classes de altura (0..6) */
 const ic = (a: number, b: number): number => {
@@ -134,10 +136,10 @@ describe.each(ids)('faixa %s', (id) => {
     }
   })
 
-  it('compasso final: calma/vitória fecham na tônica; tensão pede a tônica (dominante)', () => {
+  it('compasso final: calma/vitória/cisnes fecham na tônica; tensão pede a tônica (dominante)', () => {
     const c = t.chords[t.bars - 1]!
     if (id === 'tensao') expect(c.name).toBe('E7')
-    else expect(c.bass % 12).toBe(0)
+    else expect(c.bass % 12).toBe(TONIC[id])
     const last = lead[t.bars - 1]!.at(-1)!
     expect(c.pcs).toContain(last.midi % 12)
   })
@@ -169,6 +171,20 @@ describe('forma', () => {
     expect(t.next).toBe('calma')
     expect(t.chords[0]!.name).toBe('C')
     expect(t.chords.at(-1)!.name).toBe('C')
+  })
+  it('cisnes: o tema do Lago dos Cisnes em lá menor, revezando com a calma', () => {
+    const t = TRACKS.cisnes
+    expect(t.rotate).toBe('calma')
+    expect(TRACKS.calma.rotate).toBe('cisnes')
+    expect(t.once).toBeFalsy()
+    // a abertura do tema: mi longo, depois lá si dó ré subindo
+    expect(parseBar(t.leadText[0]!).map((n) => n.midi)).toEqual(['E5', 'A4', 'B4', 'C5', 'D5'].map(noteToMidi))
+    expect(parseBar(t.leadText[0]!)[0]!.steps).toBe(8)
+    // o tema volta três vezes (A, A', A'')
+    expect(t.leadText[0]).toBe(t.leadText[4])
+    expect(t.leadText[0]).toBe(t.leadText[12])
+    expect(t.chords[0]!.name).toBe('Am')
+    expect(t.chords.some((c) => c.name === 'E7')).toBe(true)
   })
   it('partitura em texto cobre todos os compassos', () => {
     for (const id of ids) expect(scoreText(TRACKS[id]).split('\n')).toHaveLength(TRACKS[id].bars + 1)

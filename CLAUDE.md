@@ -57,7 +57,7 @@ Antes de entregar qualquer mudança: `npm run typecheck && npm test && npx vite 
 | `src/web/ui/Cams.tsx` | webcams (palco, faixa, flutuante) e a câmera maximizada |
 | `src/web/game/scene/` | cena da mesa em PixiJS 8 (`engine.ts`), geometria (`layout.ts`), fila de animações (`plan.ts`) |
 | `src/web/game/art/` | toda a pixel art, desenhada em código |
-| `src/web/game/audio/` | música chiptune (sequenciador próprio) e efeitos |
+| `src/web/game/audio/` | música chiptune (sequenciador próprio) e efeitos; a música de fundo reveza `calma` e `cisnes` (Lago dos Cisnes em 8 bits) pelo campo `rotate` |
 | `src/web/storage.ts` | preferências no `localStorage` (mic, volumes, qualidade, música, tour...) |
 | `src/web/ui/tourLogic.ts` | passos do tour (driver.js); o teste confere a quantidade |
 | `scripts/commit-rules.ts` | tipos e escopos aceitos nos commits |
