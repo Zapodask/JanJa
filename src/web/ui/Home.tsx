@@ -20,6 +20,7 @@ import { startTour, stopTour } from './tour'
 import { HOME_STEPS, shouldAskTour, shouldAutoTour } from './tourLogic'
 import { TourPrompt } from './TourPrompt'
 import { HomeTv, RoamingJan } from './HomeScene'
+import { noAutofill } from './noAutofill'
 
 interface Props {
   name: string
@@ -126,6 +127,7 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
         <span className="name-input">
           <Avatar name={draft || '?'} size={36} />
           <input
+            {...noAutofill('apelido')}
             value={draft}
             maxLength={MAX_NAME_LENGTH}
             onChange={(e) => setDraft(e.target.value)}
@@ -139,6 +141,7 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
         <label className="field room-name-field">
           <span>Nome da sala nova</span>
           <input
+            {...noAutofill('sala-nova')}
             value={roomName}
             maxLength={MAX_ROOM_NAME}
             onChange={(e) => setRoomName(e.target.value)}
@@ -151,8 +154,9 @@ export function Home({ name, onName, onGo, invalidPath }: Props) {
             {busy ? 'Criando...' : 'Criar sala'}
           </button>
           <span className="or">ou</span>
-          <form className="join" onSubmit={join}>
+          <form className="join" onSubmit={join} autoComplete="off">
             <input
+              {...noAutofill('codigo')}
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="Cole o link ou código"

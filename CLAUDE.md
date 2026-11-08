@@ -87,6 +87,7 @@ Antes de entregar qualquer mudança: `npm run typecheck && npm test && npx vite 
 
 ## Pegadinhas de UI conhecidas
 
+- **Campo de texto livre leva `{...noAutofill('nome')}`** (`src/web/ui/noAutofill.ts`) e o `<form>` leva `autoComplete="off"`. Sem isso o Chrome oferece Google Pay ou cartão salvo no chat e nos nomes.
 - **Não coloque o `Dropdown` dentro de `<label>`**: o clique na opção é repassado ao botão e a lista reabre. Use `<div>`.
 - **Classes CSS curtas colidem.** `.cam` é o botão da barra; o quadro de câmera é `.cam-tile`. O estado do mic é `.is-muted`/`.is-live` (não `.muted`, que é texto apagado).
 - Botões são estilizados por variáveis (`--bg`, `--bg-h`, `--bd`, `--bd-h`, `--fg`). Para um botão novo, troque as variáveis em vez de sobrescrever `background`, senão o hover quebra.

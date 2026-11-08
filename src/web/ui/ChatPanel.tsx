@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, type FormEvent } from 'react'
 import { MAX_CHAT_TEXT, type ChatMessage } from '../../shared/protocol'
 import { toneOf } from './Avatar'
 import { Icon } from './icons'
+import { noAutofill } from './noAutofill'
 
 /** fechado = só o botão; coluna = ao lado da tela; cheio = no lugar da tela */
 export type ChatMode = 'fechado' | 'coluna' | 'cheio'
@@ -98,9 +99,10 @@ export function ChatPanel({ channelName, messages, selfId, mode, draft, onDraft,
         )}
       </div>
 
-      <form className="chat-form" onSubmit={submit}>
+      <form className="chat-form" onSubmit={submit} autoComplete="off">
         <input
           ref={inputRef}
+          {...noAutofill('chat')}
           value={draft}
           maxLength={MAX_CHAT_TEXT}
           placeholder={`Mensagem para ${channelName}`}

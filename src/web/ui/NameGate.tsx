@@ -4,6 +4,7 @@ import { cleanName, saveName } from '../storage'
 import { Avatar } from './Avatar'
 import { Brand } from './Brand'
 import { Jan } from './Pixel'
+import { noAutofill } from './noAutofill'
 
 /** Quem abre o link da sala pela primeira vez escolhe o apelido antes de entrar. */
 export function NameGate({
@@ -27,7 +28,7 @@ export function NameGate({
 
   return (
     <main className="center">
-      <form className="panel narrow" onSubmit={submit}>
+      <form className="panel narrow" onSubmit={submit} autoComplete="off">
         <div className="gate-jan" aria-hidden="true">
           <Jan pose="wave" size={120} />
         </div>
@@ -41,6 +42,7 @@ export function NameGate({
           <span className="name-input">
             <Avatar name={draft || '?'} size={36} />
             <input
+              {...noAutofill('apelido')}
               value={draft}
               maxLength={MAX_NAME_LENGTH}
               onChange={(e) => setDraft(e.target.value)}

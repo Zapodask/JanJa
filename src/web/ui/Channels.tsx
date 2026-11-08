@@ -18,6 +18,7 @@ import { Avatar } from './Avatar'
 import { Icon } from './icons'
 import { VolumeSlider } from './media'
 import { roomTitle, timeAgo } from './recent'
+import { noAutofill } from './noAutofill'
 
 /**
  * Linha compacta de uma pessoa do seu canal (estilo Raidcall): avatar pequeno, nome e mic.
@@ -137,8 +138,9 @@ function ChannelForm({
     else onCancel()
   }
   return (
-    <form className="channel-form" onSubmit={submit} onKeyDown={(e) => e.key === 'Escape' && onCancel()}>
+    <form className="channel-form" autoComplete="off" onSubmit={submit} onKeyDown={(e) => e.key === 'Escape' && onCancel()}>
       <input
+        {...noAutofill('canal')}
         autoFocus
         value={name}
         maxLength={MAX_CHANNEL_NAME}
@@ -349,8 +351,9 @@ export function ServerCard({
   return (
     <section className="server-card">
       {editing ? (
-        <form className="server-form" onSubmit={submit} onKeyDown={(e) => e.key === 'Escape' && setEditing(false)}>
+        <form className="server-form" autoComplete="off" onSubmit={submit} onKeyDown={(e) => e.key === 'Escape' && setEditing(false)}>
           <input
+            {...noAutofill('sala')}
             autoFocus
             value={draft}
             maxLength={MAX_ROOM_NAME}
