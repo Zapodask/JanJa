@@ -582,6 +582,37 @@ button.link:hover:not(:disabled) { --fg: var(--paper); }
 .golf-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
 .golf-ranking { min-width: min(640px, 100%); }
 .golf-ranking .golf-card { font-size: 13px; }
+
+/* xadrez: tabuleiro em pixel art, placas com relógio e lances */
+.chess-scene { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--wall); display: grid; place-items: center; }
+.chess-stack { display: flex; flex-direction: column; }
+.chess-board-wrap { position: relative; box-shadow: 0 0 0 4px var(--rug), 0 12px 32px rgba(0, 0, 0, 0.5); border-radius: 2px; }
+.chess-board { display: block; image-rendering: pixelated; touch-action: none; user-select: none; outline: none; }
+.chess-board.my-turn { cursor: pointer; }
+.chess-coord text { font-family: 'Pixelify Sans Variable', system-ui, sans-serif; font-size: 4px; pointer-events: none; }
+.chess-slide { animation: chess-slide 0.18s var(--ease) both; }
+@keyframes chess-slide { from { transform: translate(var(--dx), var(--dy)); } }
+.chess-plate { display: flex; align-items: center; gap: 8px; padding: 0 4px; min-width: 0; }
+.chess-plate:first-child { margin-bottom: 8px; }
+.chess-plate:last-child { margin-top: 8px; }
+.chess-plate-name { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.chess-plate-name small { color: var(--dust); font-size: 12px; }
+.chess-plate.active .chess-plate-name { color: var(--lamp); }
+.chess-captured { display: flex; flex: 1; min-width: 0; overflow: hidden; }
+.chess-captured svg { margin-right: -6px; flex: none; }
+.chess-clock { margin-left: auto; padding: 4px 10px; border-radius: var(--r-ctl); background: var(--sofa); border: 1px solid var(--rug); color: var(--dust); font-size: 20px; font-variant-numeric: tabular-nums; }
+.chess-clock.on { color: var(--wall); background: var(--paper); border-color: var(--paper); }
+.chess-clock.on.low { background: var(--off); border-color: var(--off); }
+.chess-promo { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(34, 28, 25, 0.82); z-index: 2; }
+.chess-promo-row { display: flex; gap: 8px; }
+.chess-promo-row button { --bg: var(--sofa); --bg-h: var(--rug); --bd: var(--rug); --bd-h: var(--lamp); padding: 4px; height: auto; }
+.chess-promo-row svg { display: block; image-rendering: pixelated; }
+.chess-moves { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 2px 12px; max-height: 240px; overflow-y: auto; font-size: 14px; }
+.chess-moves li { display: grid; grid-template-columns: 32px 1fr 1fr; gap: 4px; padding: 2px 6px; border-radius: var(--r-ctl); }
+.chess-moves li:nth-child(odd) { background: var(--wall); }
+.chess-move-n { color: var(--dust); }
+.chess-end { min-width: min(480px, 100%); }
+.chess-end .chess-moves { width: 100%; text-align: left; max-height: 160px; }
 .hand-ex { color: var(--paper); }
 .hand-hint { grid-column: 2; color: var(--dust); font-size: 13px; }
 

@@ -11,12 +11,13 @@ import { canShareScreen, canUseCamera, useRoom } from '../useRoom'
 import { CamFocus, CamStrip, type CamItem } from './Cams'
 import { ChannelList, DownloadBox, OtherRooms, ServerCard } from './Channels'
 import { ChatPanel, type ChatMode } from './ChatPanel'
+import type { ChessAction, ChessView, Promo } from '../../shared/games/chess/types'
 import type { GolfView } from '../../shared/games/golf/types'
 import type { PokerView } from '../../shared/games/poker/types'
 import type { EventBatch, Rect, SceneLayout, SfxName } from '../game/contract'
 import { GameAudioDriver } from '../game/GameAudioDriver'
 import { sameRects, shortcutAction, shouldInvite } from '../game/helpers'
-import { loadGolfScene, loadScene } from '../game/loaders'
+import { loadChessScene, loadGolfScene, loadScene } from '../game/loaders'
 import { Avatar, toneOf } from './Avatar'
 import { GameInvite } from './GameInvite'
 import { GamesPanel } from './GamesPanel'
@@ -39,9 +40,12 @@ const PokerHudLazy = lazy(() => import('./PokerHud').then((m) => ({ default: m.P
 // o golfe (Three.js) também só baixa quando há partida de golfe
 const GolfSceneLazy = lazy(loadGolfScene)
 const GolfHudLazy = lazy(() => import('./GolfHud').then((m) => ({ default: m.GolfHud })))
+// o tabuleiro do xadrez também
+const ChessSceneLazy = lazy(loadChessScene)
+const ChessHudLazy = lazy(() => import('./ChessHud').then((m) => ({ default: m.ChessHud })))
 
-/** onde ficam as telas compartilhadas durante o golfe: miniaturas empilhadas no canto de cima */
-const GOLF_TV = { w: 208, h: 117, gap: 8, edge: 12 }
+/** onde ficam as telas compartilhadas durante o golfe e o xadrez: miniaturas empilhadas no canto de cima */
+const CORNER_TV = { w: 208, h: 117, gap: 8, edge: 12 }
 
 function useMedia(query: string): boolean {
   const [on, setOn] = useState(() => matchMedia(query).matches)
@@ -329,10 +333,11 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   }, [tiles])
   const shown = [...tiles, ...ghosts.filter((g) => !tiles.some((t) => t.id === g.id))]
 
-  // ---------- jogos (poker e golfe) ----------
+  // ---------- jogos (poker, golfe e xadrez) ----------
   const gameId = game.lobby?.gameId
   const view = gameId === 'poker' && game.view ? (game.view as PokerView) : null
   const golfView = gameId === 'golf' && game.view ? (game.view as GolfView) : null
+  const chessView = gameId === 'chess' && game.view ? (game.view as ChessView) : null
   const [sceneSfx, setSceneSfx] = useState<{ name: SfxName; n: number } | null>(null)
   const onGolfSfx = useCallback((name: SfxName) => setSceneSfx((s) => ({ name, n: (s?.n ?? 0) + 1 })), [])
   const golfRef = useRef(golfView)
@@ -351,7 +356,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   const ghostStyles = useRef(new Map<string, CSSProperties>())
   const narrow = useMedia('(max-width: 700px) and (orientation: portrait)')
   const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
-  const tableMode = (!!view || !!golfView) && showTable
+  const tableMode = (!!view || !!golfView || !!chessView) && showTable
   const hiTile = tableMode && hi && tiles.some((t) => t.id === hi) ? hi : null
   const layout: SceneLayout = hiTile ? 'faixa' : 'mesa'
   const hasView = !!game.view
@@ -378,7 +383,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     if (gameError) toast(gameError.message, 'warn')
   }, [gameError, toast])
 
-  const colorSource = view?.seats ?? golfView?.players
+  const colorSource = view?.seats ?? golfView?.players ?? (chessView ? [chessView.white, chessView.black] : undefined)
   const colors = useMemo(() => Object.fromEntries((colorSource ?? []).map((x) => [x.playerId, toneOf(x.name)])), [colorSource])
   const onGolfShot = useCallback(
     (angle: number, power: number) => {
@@ -387,6 +392,10 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
       if (!v || !me) return
       gameApi.act({ type: 'shot', hole: v.hole, stroke: me.strokes, angle, power })
     },
+    [gameApi]
+  )
+  const onChessMove = useCallback(
+    (from: string, to: string, promo?: Promo) => gameApi.act({ type: 'move', from, to, ...(promo ? { promo } : {}) } satisfies ChessAction),
     [gameApi]
   )
   const onTvRects = useCallback((r: Rect[]) => setRects((prev) => (sameRects(prev, r) ? prev : r)), [])
@@ -408,8 +417,8 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     if (!tableMode) return undefined
     if (hiTile) return { mode: id === hiTile ? 'hi' : 'parked' }
     if (narrow) return { mode: 'strip' }
-    if (golfView) {
-      const style = { right: GOLF_TV.edge, top: GOLF_TV.edge + idx * (GOLF_TV.h + GOLF_TV.gap), width: GOLF_TV.w, height: GOLF_TV.h }
+    if (golfView || chessView) {
+      const style = { right: CORNER_TV.edge, top: CORNER_TV.edge + idx * (CORNER_TV.h + CORNER_TV.gap), width: CORNER_TV.w, height: CORNER_TV.h }
       return { mode: 'rect', style }
     }
     const r = idx < tiles.length ? rects[idx] : undefined
@@ -791,6 +800,19 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
                 </Suspense>
               </div>
             )}
+            {tableMode && chessView && (
+              <div className="scene-host chess-host">
+                <Suspense
+                  fallback={
+                    <div className="scene-loading">
+                      <TvOff noise />
+                    </div>
+                  }
+                >
+                  <ChessSceneLazy view={chessView} colors={colors} reducedMotion={reducedMotion} onMove={onChessMove} />
+                </Suspense>
+              </div>
+            )}
             {camItems.length > 0 && (
               <CamStrip
                 items={camItems}
@@ -900,6 +922,26 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
                   const options = game.lobby?.options
                   gameApi.close()
                   gameApi.open('golf', options)
+                }}
+                onClose={gameApi.close}
+                onBackToScreens={() => setShowTable(false)}
+                musicOn={musicOn}
+                musicVolume={musicVolume}
+                onMusicOn={toggleMusic}
+                onMusicVolume={changeMusicVolume}
+              />
+            </Suspense>
+          )}
+          {tableMode && chessView && (
+            <Suspense fallback={null}>
+              <ChessHudLazy
+                view={chessView}
+                canManage={!!game.lobby?.canManage}
+                onAct={gameApi.act}
+                onPlayAgain={() => {
+                  const options = game.lobby?.options
+                  gameApi.close()
+                  gameApi.open('chess', options)
                 }}
                 onClose={gameApi.close}
                 onBackToScreens={() => setShowTable(false)}

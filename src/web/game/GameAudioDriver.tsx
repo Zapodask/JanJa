@@ -1,10 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAudioLevel } from '../audio'
+import type { ChessEvent } from '../../shared/games/chess/types'
 import type { GolfEvent } from '../../shared/games/golf/types'
 import type { PokerEvent } from '../../shared/games/poker/types'
 import type { GameId } from '../../shared/games/protocol'
-import type { GameAudio, RawEventBatch, SfxName } from './contract'
-import { duckFromLevel, golfSfxForEvent, golfTrackForEvent, sfxForEvent, trackForEvent } from './helpers'
+import type { GameAudio, MusicTrack, RawEventBatch, SfxName } from './contract'
+import {
+  chessSfxForEvent,
+  chessTrackForEvent,
+  duckFromLevel,
+  golfSfxForEvent,
+  golfTrackForEvent,
+  sfxForEvent,
+  trackForEvent,
+  type SfxCue
+} from './helpers'
 import { loadAudio } from './loaders'
 
 export interface MicProbe {
@@ -12,6 +22,18 @@ export interface MicProbe {
   stream?: MediaStream
   /** mic mudo não conta para o ducking */
   muted: boolean
+}
+
+function cueFor(gameId: GameId, ev: unknown): SfxCue | null {
+  if (gameId === 'golf') return golfSfxForEvent(ev as GolfEvent)
+  if (gameId === 'chess') return chessSfxForEvent(ev as ChessEvent)
+  return sfxForEvent(ev as PokerEvent)
+}
+
+function trackFor(gameId: GameId, ev: unknown): MusicTrack | null {
+  if (gameId === 'golf') return golfTrackForEvent(ev as GolfEvent)
+  if (gameId === 'chess') return chessTrackForEvent(ev as ChessEvent)
+  return trackForEvent(ev as PokerEvent)
 }
 
 interface Props {
@@ -97,9 +119,9 @@ export function GameAudioDriver({ gameId, seated, started, lastEvents, sceneSfx,
     const a = audio.current
     if (!ready || !a) return
     for (const ev of lastEvents.events) {
-      const cue = gameId === 'golf' ? golfSfxForEvent(ev as GolfEvent) : sfxForEvent(ev as PokerEvent)
+      const cue = cueFor(gameId, ev)
       if (cue && soundsOn) a.sfx(cue.name, cue.count ? { count: cue.count } : undefined)
-      const track = gameId === 'golf' ? golfTrackForEvent(ev as GolfEvent) : trackForEvent(ev as PokerEvent)
+      const track = trackFor(gameId, ev)
       if (track && wantMusic) a.setTrack(track)
     }
   }, [lastEvents, ready, soundsOn, wantMusic, gameId])
