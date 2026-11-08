@@ -1,8 +1,9 @@
 import '@fontsource-variable/pixelify-sans'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { mapById } from '../../shared/games/golf/maps'
 import type { GolfView } from '../../shared/games/golf/types'
 import { formatClock } from '../game/helpers'
+import { useServerNow } from '../game/useServerNow'
 import { Icon } from './icons'
 import { VolumeSlider } from './media'
 
@@ -18,22 +19,6 @@ interface Props {
   musicVolume: number
   onMusicOn: (on: boolean) => void
   onMusicVolume: (v: number) => void
-}
-
-/** relógio do servidor estimado aqui (a visão traz `serverNow`) */
-function useServerNow(view: GolfView): number {
-  const offset = useRef(0)
-  const lastServerNow = useRef(0)
-  if (view.serverNow !== lastServerNow.current) {
-    lastServerNow.current = view.serverNow
-    offset.current = view.serverNow - Date.now()
-  }
-  const [now, setNow] = useState(() => Date.now() + offset.current)
-  useEffect(() => {
-    const t = window.setInterval(() => setNow(Date.now() + offset.current), 500)
-    return () => window.clearInterval(t)
-  }, [])
-  return now
 }
 
 /** "+2", "-1", "par" em relação ao par acumulado */
@@ -100,7 +85,7 @@ function Scorecard({ view, me, colors }: { view: GolfView; me: string | null; co
 /** Barra de baixo do golfe: buraco, tacadas, tempo, placar e fim de partida. */
 export function GolfHud(p: Props) {
   const { view, me } = p
-  const now = useServerNow(view)
+  const now = useServerNow(view.serverNow)
   const [cardOpen, setCardOpen] = useState(false)
   const map = mapById(view.mapId)
   const hole = map?.holes[view.hole]

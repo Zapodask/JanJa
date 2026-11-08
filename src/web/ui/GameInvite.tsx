@@ -11,14 +11,20 @@ interface Props {
 /** Convite para o jogo aberto: aparece para todos que não abriram nem entraram. */
 export function GameInvite({ gameId, openedBy, onSit, onLater }: Props) {
   const golf = gameId === 'golf'
+  const chess = gameId === 'chess'
+  const text = golf
+    ? `${openedBy} abriu uma partida de Golfe`
+    : chess
+      ? `${openedBy} abriu uma partida de Xadrez`
+      : `${openedBy} abriu uma mesa de Poker`
   return (
     <div className="game-invite" role="status">
       <span className="game-invite-icon">
-        <Icon name={golf ? 'flag' : 'cards'} size={20} />
+        <Icon name={golf ? 'flag' : chess ? 'pawn' : 'cards'} size={20} />
       </span>
-      <span className="game-invite-text">{golf ? `${openedBy} abriu uma partida de Golfe` : `${openedBy} abriu uma mesa de Poker`}</span>
+      <span className="game-invite-text">{text}</span>
       <button className="primary" onClick={onSit}>
-        {golf ? 'Entrar' : 'Sentar'}
+        {golf ? 'Entrar' : chess ? 'Jogar' : 'Sentar'}
       </button>
       <button onClick={onLater}>Agora não</button>
     </div>

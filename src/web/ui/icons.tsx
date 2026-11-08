@@ -169,6 +169,12 @@ const PATHS = {
       <ellipse cx="9" cy="21" rx="5" ry="1.2" />
     </>
   ),
+  pawn: (
+    <>
+      <circle cx="12" cy="6.5" r="3" />
+      <path d="M9.5 10.5h5M10.5 10.5c0 3-1 5.5-3 7.5h9c-2-2-3-4.5-3-7.5M6 21h12v-3H6z" />
+    </>
+  ),
   music: (
     <>
       <path d="M9 18V6l10-2v12" />

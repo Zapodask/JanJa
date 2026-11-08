@@ -34,6 +34,7 @@ export const SCOPES = {
   jogos: 'plataforma de jogos da sala',
   poker: 'mesa de poker: regras, cena, música, HUD',
   golfe: 'mini-golfe 3D: física, mapas, cena, HUD',
+  xadrez: 'xadrez: regras, relógio, tabuleiro, HUD',
   tour: 'tour guiado',
   jan: 'o mascote Jan',
   ui: 'visual geral, tela inicial, componentes',
