@@ -101,7 +101,7 @@ export interface Prefs {
 const DEFAULT_PREFS: Prefs = {
   micMuted: true,
   presetId: 'auto',
-  approval: true,
+  approval: false,
   sinkId: 'default',
   volumes: {},
   sidebarOpen: true,
@@ -135,10 +135,24 @@ function migrateAuto(prefs: Prefs): Prefs {
   return next
 }
 
+/**
+ * Migração única: "pedir aprovação" começava ligado e era gravado sozinho ao criar a sala, então o valor salvo
+ * não diz se a pessoa escolheu. Agora começa desligado; na primeira vez, todo mundo volta para desligado e
+ * depois a escolha da pessoa vale.
+ */
+function migrateApproval(prefs: Prefs): Prefs {
+  if (load('approvalOffV1')) return prefs
+  save('approvalOffV1', '1')
+  if (!prefs.approval) return prefs
+  const next = { ...prefs, approval: false }
+  saveJson('prefs', next)
+  return next
+}
+
 let cache: Prefs | undefined
 
 export function getPrefs(): Prefs {
-  cache ??= migrateAuto({ ...DEFAULT_PREFS, ...legacy(), ...loadJson<Partial<Prefs>>('prefs', {}) })
+  cache ??= migrateApproval(migrateAuto({ ...DEFAULT_PREFS, ...legacy(), ...loadJson<Partial<Prefs>>('prefs', {}) }))
   return cache
 }
 
