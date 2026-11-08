@@ -3,6 +3,7 @@ import { rankName, rankValue, SUIT_NAME, suitOf } from '../../shared/games/poker
 import type { CheckersEvent } from '../../shared/games/checkers/types'
 import type { ChessEvent } from '../../shared/games/chess/types'
 import type { GolfEvent } from '../../shared/games/golf/types'
+import type { TrucoEvent } from '../../shared/games/truco/types'
 import type { TycoonEvent } from '../../shared/games/tycoon/types'
 import type { Card, LegalAction, PokerAction, PokerEvent, PokerMode, PokerView } from '../../shared/games/poker/types'
 import type { MusicTrack, Rect, SfxName } from './contract'
@@ -205,6 +206,35 @@ export function tycoonSfxForEvent(ev: TycoonEvent): SfxCue | null {
 export function tycoonTrackForEvent(ev: TycoonEvent): MusicTrack | null {
   if (ev.type === 'start') return 'calma'
   if (ev.type === 'takeover' || ev.type === 'bankrupt') return 'tensao'
+  if (ev.type === 'end') return 'vitoria'
+  return null
+}
+
+/** Som de um evento do truco: dar cartas, carta na mesa, gritos de truco e o fim. */
+export function trucoSfxForEvent(ev: TrucoEvent): SfxCue | null {
+  switch (ev.type) {
+    case 'deal':
+      return { name: 'shuffle' }
+    case 'play':
+      return { name: 'flip' }
+    case 'call':
+      return ev.call === 'truco' || ev.call === 'retruco' || ev.call === 'vale4' || ev.call === 'contraflor' ? { name: 'allin' } : { name: 'chip' }
+    case 'answer':
+      return ev.quero ? { name: 'check' } : { name: 'fold' }
+    case 'mazo':
+      return { name: 'fold' }
+    case 'mesa-end':
+      return { name: 'win' }
+    case 'end':
+      return { name: 'podium' }
+    default:
+      return null
+  }
+}
+
+export function trucoTrackForEvent(ev: TrucoEvent): MusicTrack | null {
+  if (ev.type === 'deal') return 'calma'
+  if (ev.type === 'call' && (ev.call === 'retruco' || ev.call === 'vale4' || ev.call === 'falta')) return 'tensao'
   if (ev.type === 'end') return 'vitoria'
   return null
 }

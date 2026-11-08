@@ -49,6 +49,11 @@ export interface GameDefinition<State, Options, Action, View, Event> {
    * valida sozinho se a ação ainda vale. Sem isto, só a ação feita sobre a visão mais nova vale.
    */
   concurrent?: boolean
+  /**
+   * Cadeiras conforme as opções (ex.: truco 1x1, 2x2 ou 3x3 exige a mesa completa).
+   * Sem isto, valem `minPlayers` e `maxPlayers`.
+   */
+  seats?(options: Options): { min: number; max: number }
   /** valida/normaliza opções vindas do cliente (o servidor nunca confia nelas cruas) */
   parseOptions(raw: unknown): Options | GameError
   setup(players: PlayerRef[], options: Options, ctx: GameCtx): Step<State, Event>

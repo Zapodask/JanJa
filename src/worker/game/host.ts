@@ -110,13 +110,19 @@ export class GameHost {
     return !!conn.data().isHost || identityOf(conn) === s.openedByClientId
   }
 
+  /** quantas cadeiras a partida aberta tem (o jogo pode decidir pelas opções) */
+  private limits(s: GameSnapshot): { min: number; max: number } {
+    const g = this.game(s)
+    return g.seats ? g.seats(s.options) : { min: g.minPlayers, max: g.maxPlayers }
+  }
+
   private over(s: GameSnapshot): boolean {
     return s.started && this.game(s).isOver(s.state)
   }
 
   // ---------- envio ----------
   private lobbyFor(s: GameSnapshot, conn: HostConn): GameLobby {
-    const g = this.game(s)
+    const lim = this.limits(s)
     const me = identityOf(conn)
     return {
       gameId: s.gameId,
@@ -132,8 +138,8 @@ export class GameHost {
           present: this.isPresent(x.clientId),
           you: x.clientId === me
         })),
-      maxPlayers: g.maxPlayers,
-      minPlayers: g.minPlayers,
+      maxPlayers: lim.max,
+      minPlayers: lim.min,
       started: s.started
     }
   }
@@ -250,16 +256,16 @@ export class GameHost {
   }
 
   private sit(s: GameSnapshot, conn: HostConn, me: string, want: number | undefined): void {
-    const g = this.game(s)
     const mine = this.seatOf(s, conn)
     if (s.started) {
       return mine ? this.sendLobby(s, conn) : this.err(conn, 'ja-comecou', 'A partida já começou.')
     }
-    const free = (n: number) => n < g.maxPlayers && !s.seats.some((x) => x.seat === n && x !== mine)
+    const max = this.limits(s).max
+    const free = (n: number) => n < max && !s.seats.some((x) => x.seat === n && x !== mine)
     let seat = want
     if (seat === undefined) {
       if (mine) return this.sendLobby(s, conn)
-      seat = Array.from({ length: g.maxPlayers }, (_, i) => i).find(free)
+      seat = Array.from({ length: max }, (_, i) => i).find(free)
     }
     if (seat === undefined || !free(seat)) return this.err(conn, 'mesa-cheia', 'Cadeira ocupada ou mesa cheia.')
     if (mine) mine.seat = seat
@@ -281,8 +287,9 @@ export class GameHost {
     if (!this.canManage(s, conn)) return this.err(conn, 'sem-permissao', 'Só quem abriu ou o host inicia.')
     if (s.started) return this.err(conn, 'ja-comecou', 'A partida já começou.')
     const g = this.game(s)
-    if (s.seats.length < g.minPlayers) {
-      return this.err(conn, 'jogadores-insuficientes', `Precisa de pelo menos ${g.minPlayers} jogadores.`)
+    const lim = this.limits(s)
+    if (s.seats.length < lim.min) {
+      return this.err(conn, 'jogadores-insuficientes', `Precisa de pelo menos ${lim.min} jogadores.`)
     }
     const players: PlayerRef[] = [...s.seats].sort((a, b) => a.seat - b.seat).map((x) => ({ playerId: x.playerId, name: x.name }))
     const first = g.setup(players, s.options, this.ctx())
