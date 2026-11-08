@@ -92,6 +92,10 @@ export interface Prefs {
   /** música da mesa de jogo e o volume dela (0..1) */
   musicOn: boolean
   musicVolume: number
+  /** compartilhar a tela com o som do navegador junto (tem eco: a voz dos amigos volta para eles) */
+  shareBrowserAudio: boolean
+  /** chat do canal aberto ao lado da tela ou recolhido */
+  chatMode: 'coluna' | 'fechado'
 }
 
 const DEFAULT_PREFS: Prefs = {
@@ -107,7 +111,9 @@ const DEFAULT_PREFS: Prefs = {
   tourAnswer: 'ask',
   homeTourDone: 0,
   musicOn: true,
-  musicVolume: 0.35
+  musicVolume: 0.35,
+  shareBrowserAudio: false,
+  chatMode: 'coluna'
 }
 
 // compatibilidade com a chave antiga de aprovação
@@ -151,6 +157,8 @@ export const volumeKey = (kind: 'mic' | 'screen', name: string): string => `${ki
 
 export interface RecentRoom {
   roomId: string
+  /** nome da sala ("servidor"); salas antigas não têm */
+  name?: string
   /** quem estava na sala da última vez (para reconhecer) */
   people: string[]
   host: boolean
