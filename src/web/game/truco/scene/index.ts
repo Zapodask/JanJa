@@ -1,0 +1,1 @@
+export { TrucoScene } from './TrucoScene'

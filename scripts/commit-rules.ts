@@ -37,6 +37,7 @@ export const SCOPES = {
   xadrez: 'xadrez: regras, relógio, tabuleiro, HUD',
   damas: 'damas: regras, tabuleiro, HUD',
   magnata: 'Magnata: regras, tabuleiro, cartas, HUD',
+  truco: 'truco gaudério: regras, mesa, HUD',
   tour: 'tour guiado',
   jan: 'o mascote Jan',
   ui: 'visual geral, tela inicial, componentes',

@@ -9,6 +9,7 @@ import type { CheckersView } from '../../shared/games/checkers/types'
 import type { ChessView, Promo } from '../../shared/games/chess/types'
 import type { GolfView } from '../../shared/games/golf/types'
 import type { PokerEvent, PokerView } from '../../shared/games/poker/types'
+import type { TrucoView } from '../../shared/games/truco/types'
 import type { TycoonView } from '../../shared/games/tycoon/types'
 
 // ---------------- estado do jogo no cliente (SALA produz, CENA e ÁUDIO consomem) ----------------
@@ -26,7 +27,7 @@ export interface RawEventBatch {
 
 export interface GameClientState {
   lobby: GameLobby | null
-  /** visão do jogo aberto: PokerView, GolfView, ChessView, CheckersView ou TycoonView, conforme `lobby.gameId` */
+  /** visão do jogo aberto: PokerView, GolfView, ChessView, CheckersView, TycoonView ou TrucoView, conforme `lobby.gameId` */
   view: unknown
   /** último lote de eventos recebido (a CENA anima a partir dele; o seq evita animar duas vezes) */
   lastEvents: RawEventBatch | null
@@ -107,6 +108,15 @@ export interface TycoonSceneProps {
   reducedMotion: boolean
   /** clique numa casa quando o jogo pede para escolher (festival, avião) */
   onPick: (tile: number) => void
+}
+
+/** Mesa do truco (HTML + cartas em pixel art). As telas ficam em miniatura no canto. */
+export interface TrucoSceneProps {
+  view: TrucoView
+  /** último lote de eventos: a cena mostra o balão de quem cantou (truco, envido, quero) */
+  lastEvents: RawEventBatch | null
+  reducedMotion: boolean
+  onPlay: (card: string) => void
 }
 
 // ---------------- ÁUDIO ----------------
