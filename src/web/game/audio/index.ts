@@ -83,7 +83,7 @@ export function createGameAudio(ctxArg?: AudioContext): GameAudio {
       engine?.setDuck(l)
     },
     sfx(name: SfxName, opts) {
-      ensure()?.sfx(name, opts?.count)
+      ensure()?.sfx(name, opts?.count, opts)
     },
     dispose() {
       disposed = true

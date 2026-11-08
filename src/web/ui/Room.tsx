@@ -14,15 +14,17 @@ import { ChatPanel, type ChatMode } from './ChatPanel'
 import type { CheckersAction, CheckersView } from '../../shared/games/checkers/types'
 import type { ChessAction, ChessView, Promo } from '../../shared/games/chess/types'
 import type { GolfView } from '../../shared/games/golf/types'
+import type { ShooterView } from '../../shared/games/shooter/types'
 import type { PokerView } from '../../shared/games/poker/types'
 import type { Cell, Placement } from '../../shared/games/naval/fleet'
 import type { MysteryAction, MysteryView } from '../../shared/games/mystery/types'
 import type { NavalAction, NavalView } from '../../shared/games/naval/types'
 import type { TrucoAction, TrucoIntent, TrucoView } from '../../shared/games/truco/types'
 import type { TycoonAction, TycoonView } from '../../shared/games/tycoon/types'
-import type { EventBatch, Rect, SceneLayout, SfxName } from '../game/contract'
+import type { EventBatch, MusicTrack, Rect, SceneLayout, SfxName } from '../game/contract'
 import { GameAudioDriver } from '../game/GameAudioDriver'
 import { sameRects, shortcutAction, shouldInvite } from '../game/helpers'
+import { createSfxBus } from '../game/shooter/sfxBus'
 import { loadCheckersScene, loadChessScene, loadGolfScene, loadMysteryScene, loadNavalScene, loadScene, loadTrucoScene, loadTycoonScene } from '../game/loaders'
 import { Avatar, toneOf } from './Avatar'
 import { GameInvite } from './GameInvite'
@@ -58,6 +60,8 @@ const TycoonHudLazy = lazy(() => import('./TycoonHud').then((m) => ({ default: m
 // e a mesa do truco
 const TrucoSceneLazy = lazy(loadTrucoScene)
 const TrucoHudLazy = lazy(() => import('./TrucoHud').then((m) => ({ default: m.TrucoHud })))
+// e o Tiro na Sala (a cena Pixi dele ainda é outro pedaço, baixado por loadShooterScene)
+const ShooterStageLazy = lazy(() => import('./ShooterStage').then((m) => ({ default: m.ShooterStage })))
 // e a batalha naval
 const NavalSceneLazy = lazy(loadNavalScene)
 const NavalHudLazy = lazy(() => import('./NavalHud').then((m) => ({ default: m.NavalHud })))
@@ -370,6 +374,9 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   trucoRef.current = trucoView
   const tycoonRef = useRef(tycoonView)
   tycoonRef.current = tycoonView
+  const shooterView = gameId === 'shooter' && game.view ? (game.view as ShooterView) : null
+  const shooterBus = useMemo(() => createSfxBus(), [])
+  const [shooterTrack, setShooterTrack] = useState<MusicTrack | null>(null)
   /** jogo de tabuleiro para dois (xadrez ou damas) */
   const duelView = chessView ?? checkersView
   const [sceneSfx, setSceneSfx] = useState<{ name: SfxName; n: number } | null>(null)
@@ -390,7 +397,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   const ghostStyles = useRef(new Map<string, CSSProperties>())
   const narrow = useMedia('(max-width: 700px) and (orientation: portrait)')
   const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
-  const tableMode = (!!view || !!golfView || !!duelView || !!tycoonView || !!trucoView || !!navalView || !!mysteryView) && showTable
+  const tableMode = (!!view || !!golfView || !!duelView || !!tycoonView || !!trucoView || !!shooterView || !!navalView || !!mysteryView) && showTable
   const hiTile = tableMode && hi && tiles.some((t) => t.id === hi) ? hi : null
   const layout: SceneLayout = hiTile ? 'faixa' : 'mesa'
   const hasView = !!game.view
@@ -468,6 +475,11 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     const t = tilesRef2.current[i]
     if (t) setHi((h) => (h === t.id ? null : t.id))
   }, [])
+  /** G no tiro: a tela em destaque vira o palco e o jogo vira miniatura (e volta) */
+  const onShooterSpotlight = useCallback(() => {
+    const hovered = document.querySelector<HTMLElement>('[data-tile-id]:hover')?.dataset.tileId
+    setHi((h) => (h ? null : (hovered ?? tilesRef2.current[0]?.id ?? null)))
+  }, [])
   const toggleMusic = (on: boolean) => {
     setMusicOn(on)
     setPrefs({ musicOn: on })
@@ -480,7 +492,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     if (!tableMode) return undefined
     if (hiTile) return { mode: id === hiTile ? 'hi' : 'parked' }
     if (narrow) return { mode: 'strip' }
-    if (golfView || duelView || tycoonView || trucoView || navalView || mysteryView) {
+    if (golfView || duelView || tycoonView || trucoView || shooterView || navalView || mysteryView) {
       const style = { right: CORNER_TV.edge, top: CORNER_TV.edge + idx * (CORNER_TV.h + CORNER_TV.gap), width: CORNER_TV.w, height: CORNER_TV.h }
       return { mode: 'rect', style }
     }
@@ -571,7 +583,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   const effectiveSink = outputs.some((d) => d.deviceId === sinkId) ? sinkId : 'default'
   useEffect(() => setSoundSink(effectiveSink), [effectiveSink])
 
-  // atalhos: M = mic, C = câmera, F = tela cheia, Esc = sair do foco
+  // atalhos: M = mic, C = câmera, F = tela cheia, Ctrl+Alt+S = sinal, Esc = sair do foco
   const tilesRef = useRef(tiles)
   tilesRef.current = tiles
   const tableModeRef = useRef(tableMode)
@@ -588,20 +600,22 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
       if (t && (/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t.closest('[role="listbox"]'))) return
-      if (e.ctrlKey || e.metaKey || e.altKey) return
       if (tourActive()) return
       if (controlling) return // as teclas vão para o PC controlado
+      // Ctrl+Alt+S abre o sinal. Pelo `code` (tecla física): no teclado ABNT2, Ctrl+Alt vira AltGr e muda o `key`.
+      // Não é S sozinho porque o S anda para baixo no Tiro na Sala.
+      if (e.ctrlKey && e.altKey && !e.metaKey && !e.shiftKey && e.code === 'KeyS') {
+        e.preventDefault()
+        setSignalOpen((o) => !o)
+        return
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return
       if (panelOpenRef.current) return
       const k = e.key.toLowerCase()
       // o painel do sinal fica por cima do palco: o Esc fecha ele antes da câmera maximizada
       if (k === 'escape' && signalRef.current) {
         e.preventDefault()
         setSignalOpen(false)
-        return
-      }
-      if (k === 's') {
-        e.preventDefault()
-        setSignalOpen((o) => !o)
         return
       }
       if (k === 'escape' && pinnedRef.current && !document.fullscreenElement) {
@@ -862,6 +876,35 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
                   />
                 </Suspense>
               </div>
+            )}
+            {shooterView && (
+              <Suspense fallback={null}>
+                <ShooterStageLazy
+                  view={shooterView}
+                  manager={state.manager}
+                  relay={gameApi.relay}
+                  onRelay={gameApi.onRelay}
+                  act={gameApi.act}
+                  visible={tableMode}
+                  pip={!!hiTile}
+                  canManage={!!game.lobby?.canManage}
+                  reducedMotion={reducedMotion}
+                  sfxBus={shooterBus}
+                  onTrack={setShooterTrack}
+                  onPlayAgain={() => {
+                    const options = game.lobby?.options
+                    gameApi.close()
+                    gameApi.open('shooter', options)
+                  }}
+                  onClose={gameApi.close}
+                  onBackToScreens={() => setShowTable(false)}
+                  onSpotlight={onShooterSpotlight}
+                  musicOn={musicOn}
+                  musicVolume={musicVolume}
+                  onMusicOn={toggleMusic}
+                  onMusicVolume={changeMusicVolume}
+                />
+              </Suspense>
             )}
             {tableMode && chessView && (
               <div className="scene-host chess-host">
@@ -1297,7 +1340,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
             data-tour="signal"
             className={`icon-btn sig-btn h-${health} ${signalOpen ? 'open' : ''}`}
             onClick={() => setSignalOpen((o) => !o)}
-            data-tip="Sinal da conexão (S)"
+            data-tip="Sinal da conexão (Ctrl+Alt+S)"
             aria-label="Sinal da conexão"
             aria-pressed={signalOpen}
           >
@@ -1338,6 +1381,8 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
           musicOn={musicOn}
           musicVolume={musicVolume}
           inviteSeq={inviteSeq}
+          sfxBus={shooterView ? shooterBus : null}
+          track={shooterView ? shooterTrack : null}
           mics={[
             { id: 'me', stream: state.micStream, muted: micMuted },
             ...state.peers.map((p) => ({ id: p.id, stream: p.mic, muted: p.state.micMuted }))

@@ -141,7 +141,7 @@ export interface MysterySceneProps {
 
 // ---------------- ÁUDIO ----------------
 
-export type MusicTrack = 'calma' | 'tensao' | 'vitoria'
+export type MusicTrack = 'calma' | 'tensao' | 'vitoria' | 'tiroteio' | 'final'
 
 export interface GameAudio {
   /** liga a música (precisa de gesto do usuário antes; chame depois de um clique) */
@@ -153,8 +153,15 @@ export interface GameAudio {
   /** 0 = sem ducking, 1 = abaixa ao máximo (a SALA passa o nível de voz da sala) */
   setDuck(level: number): void
   /** efeito sonoro para um evento do jogo (respeita o liga/desliga dos sons da sala, controlado pela SALA) */
-  sfx(name: SfxName, opts?: { count?: number }): void
+  sfx(name: SfxName, opts?: SfxOpts): void
   dispose(): void
+}
+
+/** `volume` 0..1 (padrão 1) e `pan` -1..1 (esquerda..direita): o tiro usa os dois pela distância */
+export interface SfxOpts {
+  count?: number
+  volume?: number
+  pan?: number
 }
 
 export type SfxName =
@@ -174,3 +181,40 @@ export type SfxName =
   | 'cup'
   | 'splash'
   | 'bounce'
+  // tiro na sala
+  | 'tiro-pistola'
+  | 'tiro-escopeta'
+  | 'tiro-sub'
+  | 'tiro-rifle'
+  | 'tiro-rolha'
+  | 'explosao'
+  | 'granada'
+  | 'hitmarker'
+  | 'dano'
+  | 'abate'
+  | 'passo'
+  | 'dash'
+  | 'pegar-arma'
+  | 'pegar-vida'
+  | 'renascer'
+  | 'contagem'
+
+/** nomes de efeito do tiro (a cena pede por string; isto valida) */
+export const SHOOTER_SFX: readonly SfxName[] = [
+  'tiro-pistola',
+  'tiro-escopeta',
+  'tiro-sub',
+  'tiro-rifle',
+  'tiro-rolha',
+  'explosao',
+  'granada',
+  'hitmarker',
+  'dano',
+  'abate',
+  'passo',
+  'dash',
+  'pegar-arma',
+  'pegar-vida',
+  'renascer',
+  'contagem'
+]

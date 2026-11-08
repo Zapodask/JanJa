@@ -37,6 +37,7 @@ export const SCOPES = {
   xadrez: 'xadrez: regras, relógio, tabuleiro, HUD',
   damas: 'damas: regras, tabuleiro, HUD',
   magnata: 'Magnata: regras, tabuleiro, cartas, HUD',
+  tiro: 'Tiro na Sala: simulação, rede, mapas, cena, HUD',
   truco: 'truco gaudério: regras, mesa, HUD',
   naval: 'batalha naval: frota, tiros, mares, HUD',
   misterio: 'Mistério: cartas, palpites, caderno, HUD',

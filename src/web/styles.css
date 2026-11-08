@@ -980,3 +980,101 @@ button.sig-switch[aria-checked='true'] { --bg: rgba(255, 201, 74, 0.18); --bg-h:
   .sig-panel { animation: fade 0.2s both; }
   .sig-ev, .sig-btn.h-ruim .sig-bars { animation: none; }
 }
+
+/* ---------- Tiro na Sala: cena, toque e HUD ---------- */
+.shooter-host { overflow: hidden; background: var(--wall); }
+.table-area.has-hi .scene-host.shooter-host.pip { top: auto; left: auto; right: 12px; bottom: 12px; width: min(320px, 40%); height: auto; aspect-ratio: 16 / 9; z-index: 9; border: 2px solid var(--rug); border-radius: var(--r-panel); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
+.tiro-scene { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--wall); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; outline: none; }
+.tiro-scene canvas { image-rendering: pixelated; }
+.tiro-touch { position: absolute; inset: 0; z-index: 2; pointer-events: none; display: none; }
+.tiro-scene.is-touch .tiro-touch { display: block; }
+@media (pointer: coarse) { .tiro-touch { display: block; } }
+.tiro-stick { position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; border: 2px solid rgba(243, 235, 221, 0.4); background: rgba(34, 28, 25, 0.4); }
+.tiro-stick.hot { border-color: var(--lamp); background: rgba(255, 201, 74, 0.12); }
+.tiro-knob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(243, 235, 221, 0.55); border: 2px solid var(--wall); }
+button.tiro-btn { position: absolute; pointer-events: auto; right: 20px; width: 80px; height: 80px; padding: 0; border-radius: 50%; font-size: 14px; --bg: rgba(46, 38, 34, 0.82); --bg-h: rgba(46, 38, 34, 0.82); --bd: rgba(243, 235, 221, 0.45); --bd-h: var(--lamp); touch-action: none; }
+button.tiro-btn.dash { bottom: 22px; }
+button.tiro-btn.bomb { bottom: 116px; right: 28px; width: 72px; height: 72px; }
+button.tiro-btn:active { --bg: var(--rug); --bd: var(--lamp); transform: scale(0.95); }
+
+.tiro-hud { position: absolute; inset: 0; pointer-events: none; z-index: 5; color: var(--paper); font-size: clamp(12px, 0.55vw + 8px, 24px); text-shadow: 0 1px 0 var(--wall), 0 0 3px var(--wall); }
+.tiro-wait { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: var(--dust); }
+.tiro-top { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); text-align: center; line-height: 1.1; }
+.tiro-clock strong, .tiro-warm strong { display: block; font-size: 2em; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tiro-clock small, .tiro-warm small { color: var(--dust); }
+.tiro-clock.hurry strong, .tiro-warm strong { color: var(--lamp); }
+.tiro-feed { position: absolute; top: 8px; left: 8px; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-width: 34%; }
+.tiro-feed li { display: flex; align-items: center; gap: 6px; padding: 2px 8px; background: rgba(34, 28, 25, 0.8); border-left: 3px solid var(--rug); border-radius: 2px; animation: tiro-in 0.18s var(--ease) both; }
+.tiro-feed li.mine { border-left-color: var(--lamp); }
+.tiro-feed li.died { border-left-color: var(--off); }
+.tiro-feed .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 9em; }
+.tiro-wicon { image-rendering: pixelated; flex: none; max-height: 28px; width: auto; }
+.tiro-call { position: absolute; top: 17%; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 16px 6px 10px; background: rgba(34, 28, 25, 0.9); border: 1px solid var(--rug); border-radius: var(--r-panel); animation: tiro-pop 0.24s var(--ease) both; }
+.tiro-call.mine { border-color: var(--lamp); }
+.tiro-call strong { display: block; font-size: 1.7em; font-weight: 600; color: var(--lamp); line-height: 1; }
+.tiro-call small { color: var(--dust); }
+.tiro-respawn { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 2.4em; font-weight: 600; text-align: center; }
+.tiro-me { position: absolute; left: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; min-width: 11em; background: rgba(34, 28, 25, 0.82); border-radius: var(--r-ctl); }
+.tiro-me.dead { opacity: 0.55; }
+.tiro-me .num { font-size: 1.5em; font-variant-numeric: tabular-nums; line-height: 1; }
+.tiro-hp { display: flex; align-items: center; gap: 8px; }
+.tiro-hp .tiro-bar { flex: 1; }
+.tiro-gun { display: flex; align-items: center; gap: 8px; }
+.tiro-nades { display: flex; align-items: center; gap: 4px; margin-left: auto; color: var(--dust); }
+.tiro-nades .num { font-size: 1.2em; color: var(--paper); }
+.tiro-dash { display: flex; align-items: center; gap: 8px; color: var(--dust); font-size: 0.9em; }
+.tiro-dash .tiro-bar { flex: 1; height: 6px; }
+.tiro-bar { display: block; height: 10px; background: var(--wall); border: 1px solid var(--rug); border-radius: 2px; overflow: hidden; min-width: 60px; }
+.tiro-bar i { display: block; height: 100%; background: var(--on); transition: width 0.12s linear; }
+.tiro-bar.dash i { background: var(--lamp); }
+.tiro-tools { position: absolute; right: 8px; bottom: 8px; display: flex; align-items: center; gap: 2px; padding: 3px 6px; background: rgba(34, 28, 25, 0.82); border-radius: var(--r-ctl); pointer-events: auto; text-shadow: none; }
+.tiro-net { color: var(--dust); font-size: 12px; margin-right: 6px; white-space: nowrap; }
+.tiro-net.relay { color: var(--lamp); }
+.tiro-net.trocando-host, .tiro-net.offline { color: var(--off); }
+.tiro-help { position: absolute; right: 8px; bottom: 52px; width: min(380px, calc(100% - 16px)); max-height: calc(100% - 70px); overflow: auto; padding: 12px 14px; background: var(--sofa); border: 1px solid var(--rug); border-radius: var(--r-panel); pointer-events: auto; text-shadow: none; font-family: 'Archivo Variable', system-ui, sans-serif; font-size: 14px; }
+.tiro-help h3 { margin: 8px 0 2px; }
+.tiro-help ul { margin: 0; padding-left: 18px; color: var(--paper); }
+.tiro-board { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); min-width: min(460px, 94%); max-height: 86%; overflow: auto; padding: 12px 16px; background: rgba(46, 38, 34, 0.95); border: 1px solid var(--rug); border-radius: var(--r-panel); text-shadow: none; }
+.tiro-board strong { display: block; margin-bottom: 6px; color: var(--lamp); }
+.tiro-board table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.tiro-board th, .tiro-board td { padding: 3px 8px; text-align: right; white-space: nowrap; }
+.tiro-board thead th { color: var(--dust); font-weight: 500; }
+.tiro-board th:first-child { text-align: left; }
+.tiro-board th[scope='row'] { font-weight: 500; max-width: 12em; overflow: hidden; text-overflow: ellipsis; }
+.tiro-board tbody tr:nth-child(odd) { background: var(--wall); }
+.tiro-board tr.me th[scope='row'] { color: var(--lamp); }
+.tiro-ranking { pointer-events: auto; min-width: min(560px, 100%); text-shadow: none; }
+.tiro-podium { display: flex; align-items: flex-end; justify-content: center; gap: 8px; list-style: none; margin: 4px 0 12px; padding: 0; width: 100%; }
+.tiro-podium li { flex: 1; max-width: 150px; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; }
+.tiro-podium li.empty { visibility: hidden; }
+.tiro-podium .n { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; }
+.tiro-podium .k { color: var(--dust); font-size: 13px; }
+.tiro-podium .step { width: 100%; display: flex; align-items: flex-start; justify-content: center; padding-top: 6px; background: var(--rug); border-radius: 4px 4px 0 0; font-size: 26px; color: var(--paper); }
+.tiro-podium .place-1 .step { height: 84px; background: var(--lamp); color: var(--wall); }
+.tiro-podium .place-2 .step { height: 62px; background: var(--dust); color: var(--wall); }
+.tiro-podium .place-3 .step { height: 44px; }
+.tiro-podium li.me .n { color: var(--lamp); }
+@keyframes tiro-in { from { opacity: 0; transform: translateX(-8px); } }
+@keyframes tiro-pop { from { opacity: 0; transform: translateX(-50%) scale(0.85); } }
+@media (max-width: 700px) {
+  .tiro-me { left: 8px; right: 8px; top: 8px; bottom: auto; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-width: 0; }
+  .tiro-hp { flex: 1 1 100px; }
+  .tiro-dash { flex: 1 1 90px; }
+  .tiro-top { top: 74px; }
+  .tiro-feed { top: 74px; max-width: 46%; }
+  .tiro-call { top: 30%; }
+  .tiro-tools { right: 8px; bottom: auto; top: 118px; }
+  .tiro-net { display: none; }
+  .tiro-help { top: 160px; bottom: auto; right: 8px; }
+  .tiro-podium .n { font-size: 15px; }
+}
+@media (max-width: 700px) and (orientation: landscape) {
+  .tiro-me { left: 8px; right: auto; top: auto; bottom: 8px; flex-direction: column; align-items: stretch; }
+  .tiro-top { top: 8px; }
+  .tiro-feed { top: 8px; }
+  .tiro-tools { top: auto; bottom: 8px; }
+  .tiro-help { top: auto; bottom: 52px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tiro-feed li, .tiro-call { animation: none; }
+}
