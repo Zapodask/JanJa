@@ -8,7 +8,8 @@ import type { NavalEvent } from '../../shared/games/naval/types'
 import type { TrucoEvent } from '../../shared/games/truco/types'
 import type { TycoonEvent } from '../../shared/games/tycoon/types'
 import type { GameId } from '../../shared/games/protocol'
-import type { GameAudio, MusicTrack, RawEventBatch, SfxName } from './contract'
+import { SHOOTER_SFX, type GameAudio, type MusicTrack, type RawEventBatch, type SfxName } from './contract'
+import { sfxGate, type SfxBus } from './shooter/sfxBus'
 import {
   checkersSfxForEvent,
   checkersTrackForEvent,
@@ -69,6 +70,10 @@ interface Props {
   musicVolume: number
   /** sobe a cada convite novo: toca o embaralhar */
   inviteSeq: number
+  /** efeitos do Tiro na Sala (nome, volume e pan pela distância), vindos da cena */
+  sfxBus?: SfxBus | null
+  /** música pedida pelo jogo (Tiro na Sala: tiroteio, final e a fanfarra); sem isso toca a calma */
+  track?: MusicTrack | null
   mics: MicProbe[]
 }
 
@@ -85,7 +90,7 @@ function Probe({ id, stream, muted, onLevel }: MicProbe & { onLevel: (id: string
  * Cuida do áudio da mesa: cria o GameAudio (lazy) depois do primeiro gesto, liga a música para quem está
  * sentado, toca os sfx dos eventos e abaixa a música quando alguém fala. Não desenha nada.
  */
-export function GameAudioDriver({ gameId, seated, started, lastEvents, sceneSfx, soundsOn, musicOn, musicVolume, inviteSeq, mics }: Props) {
+export function GameAudioDriver({ gameId, seated, started, lastEvents, sceneSfx, soundsOn, musicOn, musicVolume, inviteSeq, sfxBus, track, mics }: Props) {
   const audio = useRef<GameAudio | null>(null)
   const [ready, setReady] = useState(false)
   const [gesture, setGesture] = useState(false)
@@ -123,10 +128,16 @@ export function GameAudioDriver({ gameId, seated, started, lastEvents, sceneSfx,
   useEffect(() => {
     const a = audio.current
     if (!ready || !a) return
-    if (wantMusic) a.startMusic('calma')
+    if (wantMusic) a.startMusic(trackRef.current ?? 'calma')
     else a.stopMusic()
     return () => a.stopMusic()
   }, [ready, wantMusic])
+  // o jogo pode pedir outra faixa (Tiro na Sala: último minuto e fanfarra do pódio)
+  const trackRef = useRef<MusicTrack | null>(track ?? null)
+  trackRef.current = track ?? null
+  useEffect(() => {
+    if (ready && wantMusic && track) audio.current?.setTrack(track)
+  }, [ready, wantMusic, track])
   useEffect(() => {
     if (ready) audio.current?.setMusicVolume(musicVolume)
   }, [ready, musicVolume])
@@ -153,6 +164,19 @@ export function GameAudioDriver({ gameId, seated, started, lastEvents, sceneSfx,
     lastScene.current = sceneSfx.n
     if (ready && soundsOn) audio.current?.sfx(sceneSfx.name)
   }, [sceneSfx, ready, soundsOn])
+
+  // efeitos do tiro: a cena manda nome, volume e pan; passos e rajadas passam por um limitador
+  const soundsRef = useRef(soundsOn)
+  soundsRef.current = soundsOn
+  useEffect(() => {
+    if (!ready || !sfxBus) return
+    const last = new Map<string, number>()
+    return sfxBus.subscribe((name, opts) => {
+      if (!soundsRef.current || !(SHOOTER_SFX as readonly string[]).includes(name)) return
+      if (!sfxGate(last, name, performance.now())) return
+      audio.current?.sfx(name as SfxName, opts)
+    })
+  }, [ready, sfxBus])
 
   // convite novo: embaralhar
   const lastInvite = useRef(inviteSeq)

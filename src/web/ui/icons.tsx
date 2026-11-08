@@ -188,6 +188,13 @@ const PATHS = {
       <path d="M8.5 8.5h.01M15.5 8.5h.01M12 12h.01M8.5 15.5h.01M15.5 15.5h.01" strokeWidth="3" />
     </>
   ),
+  target: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="3.5" />
+      <path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4" />
+    </>
+  ),
   sword: (
     <>
       <path d="M14.5 4.5L20 4l-.5 5.5-9 9-5-5 9-9z" />
