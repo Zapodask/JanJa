@@ -53,6 +53,7 @@ chore(release): helper 0.1.3
 | `damas` | damas: regras, tabuleiro, HUD |
 | `magnata` | Magnata: regras, tabuleiro, cartas, HUD |
 | `tiro` | Tiro na Sala: simulação, rede, mapas, cena, HUD |
+| `truco` | truco gaudério: regras, mesa, HUD |
 | `tour` | tour guiado |
 | `jan` | o mascote Jan |
 | `ui` | visual geral, tela inicial, componentes |

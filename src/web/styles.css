@@ -666,6 +666,44 @@ button.link:hover:not(:disabled) { --fg: var(--paper); }
 .ty-pawn.turn { animation: ty-bob 0.9s ease-in-out infinite; }
 @keyframes ty-bob { 50% { transform: translateY(-12%); } }
 @media (prefers-reduced-motion: reduce) { .ty-pawn { transition: none; } .ty-pawn.turn, .ty-die.roll { animation: none; } }
+
+/* truco: mesa de feltro, placas em volta, cartas jogadas na frente de cada um, a sua mão embaixo. --cw = largura da carta */
+.tr-scene { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--wall); }
+.tr-felt { position: absolute; left: 8%; right: 8%; top: 10%; bottom: 14%; border-radius: 48%; background: #2E3A2C; box-shadow: inset 0 0 0 6px var(--rug), inset 0 0 60px rgba(0, 0, 0, 0.45); }
+.tr-card { display: block; image-rendering: pixelated; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.45)); }
+.tr-rank { font-family: 'Archivo Variable', system-ui, sans-serif; font-size: 8px; font-weight: 800; }
+.tr-plate { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 10px; border-radius: var(--r-panel); background: var(--sofa); border: 1px solid var(--rug); box-shadow: inset 3px 0 0 var(--team); min-width: 120px; max-width: 200px; z-index: 3; }
+.tr-plate.acting { border-color: var(--lamp); box-shadow: inset 3px 0 0 var(--team), 0 0 0 2px rgba(255, 201, 74, 0.35); }
+.tr-name { font-weight: 600; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tr-plate.me .tr-name { color: var(--lamp); }
+.tr-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+.tr-tags i { font-style: normal; font-size: 11px; color: var(--dust); padding: 0 6px; border-radius: 999px; background: var(--wall); }
+.tr-tags .tr-team { color: var(--team); }
+.tr-tags .tr-flor { color: var(--lamp); }
+.tr-backs { display: flex; }
+.tr-backs svg { margin-right: -4px; }
+.tr-bubble { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 4px 10px; border-radius: var(--r-ctl); background: var(--paper); color: var(--wall); font-size: 15px; animation: pop 0.16s var(--ease) both; }
+.tr-bubble::after { content: ''; position: absolute; top: 100%; left: 50%; margin-left: -5px; border: 5px solid transparent; border-top-color: var(--paper); }
+.tr-played { position: absolute; transform: translate(-50%, -50%); display: flex; gap: 4px; z-index: 2; }
+.tr-played-card.in { animation: tr-in 0.22s var(--ease) both; }
+.tr-played-card.won svg { filter: drop-shadow(0 0 4px var(--lamp)); }
+@keyframes tr-in { from { opacity: 0; transform: translateY(12px) scale(0.9); } }
+.tr-center { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 4px; max-width: 40%; text-align: center; z-index: 1; pointer-events: none; }
+.tr-center strong { font-family: 'Archivo Variable', system-ui, sans-serif; font-weight: 800; font-size: 28px; color: var(--lamp); line-height: 1; font-variant-numeric: tabular-nums; }
+.tr-center small { color: var(--dust); font-size: 12px; }
+.tr-envido { color: var(--paper) !important; }
+.tr-log { list-style: none; margin: 4px 0 0; padding: 0; font-size: 12px; color: var(--dust); }
+.tr-log li:last-child { color: var(--paper); }
+.tr-hand { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: flex; gap: 8px; z-index: 4; }
+.tr-hand-card { --bg: transparent; --bg-h: transparent; --bd: transparent; --bd-h: transparent; padding: 0; height: auto; border-radius: 6px; transition: transform 0.12s var(--ease); }
+.tr-hand.can .tr-hand-card:hover, .tr-hand.can .tr-hand-card:focus-visible { transform: translateY(-10px); }
+.tr-hand-card:disabled { opacity: 1; cursor: default; }
+.tr-hand:not(.can) .tr-hand-card { filter: saturate(0.7) brightness(0.85); }
+.tr-score { display: flex; gap: 12px; align-items: baseline; font-size: 15px; color: var(--dust); }
+.tr-score b { font-family: 'Archivo Variable', system-ui, sans-serif; font-size: 26px; color: var(--paper); font-weight: 800; font-variant-numeric: tabular-nums; }
+.tr-score .us b { color: var(--lamp); }
+.tr-call { --bd: var(--lamp); }
+@media (prefers-reduced-motion: reduce) { .tr-played-card.in, .tr-bubble { animation: none; } .tr-hand-card { transition: none; } }
 .hand-ex { color: var(--paper); }
 .hand-hint { grid-column: 2; color: var(--dust); font-size: 13px; }
 

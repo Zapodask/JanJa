@@ -6,6 +6,7 @@ import { DEFAULT_GOLF_OPTIONS, type GolfOptions, type HoleSeconds } from '../../
 import { DEFAULT_OPTIONS, type PokerOptions } from '../../shared/games/poker/types'
 import type { GameId, GameLobby } from '../../shared/games/protocol'
 import { DEFAULT_SHOOTER_OPTIONS, KILL_LIMITS, MATCH_MINUTES, MAX_BOTS, type ShooterOptions } from '../../shared/games/shooter/types'
+import { DEFAULT_TRUCO_OPTIONS, type TrucoOptions, type TrucoPlayers } from '../../shared/games/truco/types'
 import { DEFAULT_TYCOON_OPTIONS, type TycoonMinutes, type TycoonOptions } from '../../shared/games/tycoon/types'
 import { Avatar } from './Avatar'
 import { Dropdown, type DropdownOption } from './Dropdown'
@@ -34,15 +35,17 @@ const GAMES: DropdownOption[] = [
   { value: 'chess', label: 'Xadrez', sub: 'Duas pessoas, com relógio', icon: 'pawn' },
   { value: 'checkers', label: 'Damas', sub: 'Duas pessoas, regras brasileiras', icon: 'checker' },
   { value: 'tycoon', label: 'Magnata', sub: 'Compre cidades e quebre os amigos, de 2 a 6', icon: 'dice' },
+  { value: 'truco', label: 'Truco', sub: 'Truco gaudério: 1x1, 2x2 ou 3x3', icon: 'sword' },
   { value: 'shooter', label: 'Tiro na Sala', sub: 'Tiroteio pixel na casa, todo mundo contra todo mundo', icon: 'target' }
 ]
 
-const GAME_ICON: Record<GameId, 'cards' | 'flag' | 'pawn' | 'checker' | 'dice' | 'target'> = {
+const GAME_ICON: Record<GameId, 'cards' | 'flag' | 'pawn' | 'checker' | 'dice' | 'sword' | 'target'> = {
   poker: 'cards',
   golf: 'flag',
   chess: 'pawn',
   checkers: 'checker',
   tycoon: 'dice',
+  truco: 'sword',
   shooter: 'target'
 }
 
@@ -58,6 +61,12 @@ const SHOOTER_BOTS: DropdownOption[] = Array.from({ length: MAX_BOTS + 1 }, (_, 
   sub: n === 0 ? 'Só gente de verdade' : undefined,
   icon: 'users'
 }))
+
+const TRUCO_MODES: DropdownOption[] = [
+  { value: '4', label: '2x2', sub: 'Duas duplas (padrão)', icon: 'users' },
+  { value: '2', label: '1x1', sub: 'Mano a mano', icon: 'users' },
+  { value: '6', label: '3x3', sub: 'Com mão de testa entre 5 e 25 pontos', icon: 'users' }
+]
 
 const TYCOON_TIME: DropdownOption[] = [
   { value: '15', label: '15 minutos', sub: 'Partida curta', icon: 'clock' },
@@ -125,7 +134,7 @@ function chessLabel(o: ChessOptions): string {
   return o.minutes === 0 ? 'sem relógio' : `${o.minutes} minutos para cada um`
 }
 
-const TITLES: Record<GameId, string> = { poker: 'Mesa de Poker', golf: 'Golfe', chess: 'Xadrez', checkers: 'Damas', tycoon: 'Magnata', shooter: 'Tiro na Sala' }
+const TITLES: Record<GameId, string> = { poker: 'Mesa de Poker', golf: 'Golfe', chess: 'Xadrez', checkers: 'Damas', tycoon: 'Magnata', truco: 'Truco', shooter: 'Tiro na Sala' }
 export const gameTitle = (id: GameId): string => TITLES[id]
 
 function lobbyLabel(lobby: GameLobby): string {
@@ -133,6 +142,10 @@ function lobbyLabel(lobby: GameLobby): string {
   if (lobby.gameId === 'shooter') return shooterLabel(lobby.options as ShooterOptions)
   if (lobby.gameId === 'chess') return chessLabel(lobby.options as ChessOptions)
   if (lobby.gameId === 'checkers') return chessLabel(lobby.options as CheckersOptions)
+  if (lobby.gameId === 'truco') {
+    const n = (lobby.options as TrucoOptions).players / 2
+    return `${n}x${n}, até 30 pontos, com flor`
+  }
   if (lobby.gameId === 'tycoon') {
     const m = (lobby.options as TycoonOptions).minutes
     return m ? `até ${m} minutos` : 'sem limite de tempo'
@@ -149,6 +162,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
   const [checkers, setCheckers] = useState<CheckersOptions>(DEFAULT_CHECKERS_OPTIONS)
   const [tycoon, setTycoon] = useState<TycoonOptions>(DEFAULT_TYCOON_OPTIONS)
   const [shooter, setShooter] = useState<ShooterOptions>(DEFAULT_SHOOTER_OPTIONS)
+  const [truco, setTruco] = useState<TrucoOptions>(DEFAULT_TRUCO_OPTIONS)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -185,7 +199,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                   ariaLabel="Jogo"
                   value={pick}
                   options={GAMES}
-                  onChange={(v) => setPick(v === 'golf' || v === 'chess' || v === 'checkers' || v === 'tycoon' || v === 'shooter' ? v : 'poker')}
+                  onChange={(v) => setPick(v === 'golf' || v === 'chess' || v === 'checkers' || v === 'tycoon' || v === 'truco' || v === 'shooter' ? v : 'poker')}
                 />
               </div>
             </div>
@@ -274,6 +288,25 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                       value={String(shooter.bots)}
                       options={SHOOTER_BOTS}
                       onChange={(v) => setShooter({ ...shooter, bots: Math.max(0, Math.min(MAX_BOTS, Number(v) || 0)) })}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : pick === 'truco' ? (
+              <>
+                <p className="muted games-lead">
+                  Truco gaudério até 30 pontos, com flor (3) e contra-flor (6). Escolha a cadeira para escolher a dupla: cadeiras
+                  ímpares jogam juntas contra as pares.
+                </p>
+                <div className="games-options">
+                  <div className="games-opt">
+                    <span>Mesa</span>
+                    <Dropdown
+                      icon="users"
+                      ariaLabel="Quantas pessoas"
+                      value={String(truco.players)}
+                      options={TRUCO_MODES}
+                      onChange={(v) => setTruco({ players: ([2, 4, 6].includes(Number(v)) ? Number(v) : 4) as TrucoPlayers })}
                     />
                   </div>
                 </div>
@@ -369,7 +402,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
             )}
             <div className="modal-actions">
               <button onClick={onClose}>Agora não</button>
-              <button className="primary" onClick={() => api.open(pick, pick === 'golf' ? golf : pick === 'chess' ? chess : pick === 'checkers' ? checkers : pick === 'tycoon' ? tycoon : pick === 'shooter' ? shooter : poker)}>
+              <button className="primary" onClick={() => api.open(pick, pick === 'golf' ? golf : pick === 'chess' ? chess : pick === 'checkers' ? checkers : pick === 'tycoon' ? tycoon : pick === 'truco' ? truco : pick === 'shooter' ? shooter : poker)}>
                 {pick === 'poker' ? 'Abrir mesa' : 'Abrir partida'}
               </button>
             </div>
@@ -411,6 +444,8 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
             <ul className="games-seats">
               {Array.from({ length: lobby.maxPlayers }, (_, i) => {
                 const s = lobby.seats.find((x) => x.seat === i)
+                // truco em dupla/trio: a cadeira escolhe o time (pares x ímpares)
+                const team = lobby.gameId === 'truco' && lobby.maxPlayers > 2 ? ` · time ${(i % 2) + 1}` : ''
                 return (
                   <li key={i} className={s ? 'taken' : 'free'}>
                     {s ? (
@@ -419,13 +454,14 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                         <span className="seat-name">
                           {s.name}
                           {s.you ? ' (você)' : ''}
+                          {team && <small className="detail">{team}</small>}
                         </span>
                         {!s.present && <small className="detail">fora da sala</small>}
                       </>
                     ) : (
                       <button className="seat-free" onClick={() => api.sit(i)}>
                         <span className="seat-empty" aria-hidden="true" />
-                        {joins ? `Vaga ${i + 1} livre` : `Cadeira ${i + 1} livre`}
+                        {joins ? `Vaga ${i + 1} livre` : `Cadeira ${i + 1} livre${team}`}
                       </button>
                     )}
                   </li>

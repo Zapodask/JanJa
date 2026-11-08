@@ -1,8 +1,8 @@
 /**
- * Pontos de carga lazy dos jogos: Pixi, GSAP, Three.js, os tabuleiros (xadrez, damas, Magnata) e o áudio só entram no bundle quando um jogo abre.
+ * Pontos de carga lazy dos jogos: Pixi, GSAP, Three.js, os tabuleiros (xadrez, damas, Magnata), a mesa do truco e o áudio só entram no bundle quando um jogo abre.
  */
-import type { CheckersSceneProps, ChessSceneProps, GameAudio, GolfSceneProps, PokerSceneProps, TycoonSceneProps } from './contract'
 import type { ShooterSceneProps } from './shooter/contract'
+import type { CheckersSceneProps, ChessSceneProps, GameAudio, GolfSceneProps, PokerSceneProps, TrucoSceneProps, TycoonSceneProps } from './contract'
 import type { ComponentType } from 'react'
 
 export const loadScene = (): Promise<{ default: ComponentType<PokerSceneProps> }> =>
@@ -27,5 +27,8 @@ export const loadTycoonScene = (): Promise<{ default: ComponentType<TycoonSceneP
 /** cena do Tiro na Sala (Pixi, em pixel art 480x270): o Pixi só entra neste pedaço */
 export const loadShooterScene = (): Promise<{ default: ComponentType<ShooterSceneProps> }> =>
   import('./shooter/scene').then((m) => ({ default: m.ShooterScene }))
+/** mesa do truco (HTML e SVG, sem biblioteca de desenho) */
+export const loadTrucoScene = (): Promise<{ default: ComponentType<TrucoSceneProps> }> =>
+  import('./truco/scene').then((m) => ({ default: m.TrucoScene }))
 
 export const loadAudio = (): Promise<() => GameAudio> => import('./audio').then((m) => () => m.createGameAudio())
