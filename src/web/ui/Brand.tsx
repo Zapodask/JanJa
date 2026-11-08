@@ -1,8 +1,19 @@
 import { useId } from 'react'
+import { LOGO_H, LOGO_W, logoRects } from './logo'
 
-/** Wordmark tipográfico. Com `draw`, entra com a mesma linha de "TV ligando". */
+const RECTS = logoRects()
+
+/** Logo em pixel art (src/web/ui/logo.ts). Com `draw`, entra com a mesma linha de "TV ligando". */
 export function Brand({ size = 'md', draw = false }: { size?: 'md' | 'xl'; draw?: boolean }) {
-  return <span className={`brand ${size} ${draw ? 'draw' : ''}`}>JanJa</span>
+  return (
+    <span className={`brand ${size} ${draw ? 'draw' : ''}`}>
+      <svg viewBox={`0 0 ${LOGO_W} ${LOGO_H}`} shapeRendering="crispEdges" role="img" aria-label="JanJa">
+        {RECTS.map((r, i) => (
+          <rect key={i} x={r.x} y={r.y} width={r.w} height={1} fill={r.fill} />
+        ))}
+      </svg>
+    </span>
+  )
 }
 
 /** A TV desligada: estado vazio e telas de espera. Com `noise`, um chiado discreto. */

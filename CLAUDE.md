@@ -31,6 +31,7 @@ Antes de entregar qualquer mudança: `npm run typecheck && npm test && npx vite 
 | `src/shared/protocol.ts` | mensagens cliente/servidor (zod), `PeerState`, canais com limite (`RoomSettings`, `Channel.limit`), chat (`ChatMessage`), teto da sala `MAX_PEERS = 100` |
 | `src/web/ui/Channels.tsx` | canais na barra lateral em árvore compacta (entrar, criar, renomear, apagar), "Outras salas" e o rodapé "Baixar" |
 | `src/web/ui/ChatPanel.tsx` | chat do canal: coluna à direita, no lugar da tela (`cheio`) ou fechado com contador |
+| `src/web/ui/logo.ts` | logo "JANJA" em pixel art gerada em código (letras, sombra e contorno); desenhada pelo `Brand` (`Brand.tsx`). Na sala, clicar na logo volta ao início |
 | `src/web/favicon.ts` | favicon animado: troca o `<link rel="icon">` pelos quadros da pose `ell` (Jan fazendo o L); parado com "reduzir movimento" |
 | `src/web/install.ts` | instalar o JanJa como app (PWA): guarda o `beforeinstallprompt`; manifesto em `public/manifest.webmanifest` |
 | `src/shared/control.ts` | protocolo do controle remoto (canal de dados id 7) |

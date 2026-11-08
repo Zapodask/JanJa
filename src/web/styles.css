@@ -35,8 +35,12 @@ code { font-family: inherit; font-variant-numeric: tabular-nums; }
 .spacer { flex: 1; }
 
 /* ---------- marca ---------- */
-.brand { font-stretch: 125%; font-weight: 900; letter-spacing: -0.03em; color: var(--lamp); font-size: 22px; line-height: 1; display: inline-block; }
-.brand.xl { font-size: clamp(48px, 9vw, 72px); letter-spacing: -0.04em; }
+.brand { display: inline-block; line-height: 0; }
+.brand svg { display: block; height: 42px; width: auto; }
+.brand.xl svg { height: auto; width: clamp(204px, 40vw, 357px); }
+/* na sala, a logo é o botão de voltar ao início */
+.brand-home { --bg: transparent; --bg-h: transparent; --bd: transparent; --bd-h: transparent; height: auto; padding: 0; border-radius: 4px; }
+.brand-home:hover .brand { filter: brightness(1.08); }
 .brand.draw { animation: tv-on 0.6s var(--ease) both; }
 
 /* ---------- botões: variantes só definem variáveis ---------- */

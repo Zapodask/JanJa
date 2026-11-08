@@ -752,7 +752,9 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
       <aside className="sidebar">
         <div className="sidebar-inner">
           <div className="sidebar-head">
-            <Brand />
+            <button className="brand-home" onClick={onLeave} data-tip="Voltar ao início" data-tip-pos="bottom" aria-label="Voltar ao início">
+              <Brand />
+            </button>
             <div className="head-actions">
               <button className="icon-btn" onClick={runTour} data-tip="Ver o tour" data-tip-pos="bottom" aria-label="Ver o tour">
                 <Icon name="help" size={20} />
