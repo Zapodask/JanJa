@@ -11,13 +11,14 @@ import { canShareScreen, canUseCamera, useRoom } from '../useRoom'
 import { CamFocus, CamStrip, type CamItem } from './Cams'
 import { ChannelList, DownloadBox, OtherRooms, ServerCard } from './Channels'
 import { ChatPanel, type ChatMode } from './ChatPanel'
+import type { CheckersAction, CheckersView } from '../../shared/games/checkers/types'
 import type { ChessAction, ChessView, Promo } from '../../shared/games/chess/types'
 import type { GolfView } from '../../shared/games/golf/types'
 import type { PokerView } from '../../shared/games/poker/types'
 import type { EventBatch, Rect, SceneLayout, SfxName } from '../game/contract'
 import { GameAudioDriver } from '../game/GameAudioDriver'
 import { sameRects, shortcutAction, shouldInvite } from '../game/helpers'
-import { loadChessScene, loadGolfScene, loadScene } from '../game/loaders'
+import { loadCheckersScene, loadChessScene, loadGolfScene, loadScene } from '../game/loaders'
 import { Avatar, toneOf } from './Avatar'
 import { GameInvite } from './GameInvite'
 import { GamesPanel } from './GamesPanel'
@@ -43,8 +44,11 @@ const GolfHudLazy = lazy(() => import('./GolfHud').then((m) => ({ default: m.Gol
 // o tabuleiro do xadrez também
 const ChessSceneLazy = lazy(loadChessScene)
 const ChessHudLazy = lazy(() => import('./ChessHud').then((m) => ({ default: m.ChessHud })))
+// e o das damas
+const CheckersSceneLazy = lazy(loadCheckersScene)
+const CheckersHudLazy = lazy(() => import('./CheckersHud').then((m) => ({ default: m.CheckersHud })))
 
-/** onde ficam as telas compartilhadas durante o golfe e o xadrez: miniaturas empilhadas no canto de cima */
+/** onde ficam as telas compartilhadas durante o golfe, o xadrez e as damas: miniaturas empilhadas no canto de cima */
 const CORNER_TV = { w: 208, h: 117, gap: 8, edge: 12 }
 
 function useMedia(query: string): boolean {
@@ -333,11 +337,14 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   }, [tiles])
   const shown = [...tiles, ...ghosts.filter((g) => !tiles.some((t) => t.id === g.id))]
 
-  // ---------- jogos (poker, golfe e xadrez) ----------
+  // ---------- jogos (poker, golfe, xadrez e damas) ----------
   const gameId = game.lobby?.gameId
   const view = gameId === 'poker' && game.view ? (game.view as PokerView) : null
   const golfView = gameId === 'golf' && game.view ? (game.view as GolfView) : null
   const chessView = gameId === 'chess' && game.view ? (game.view as ChessView) : null
+  const checkersView = gameId === 'checkers' && game.view ? (game.view as CheckersView) : null
+  /** jogo de tabuleiro para dois (xadrez ou damas) */
+  const duelView = chessView ?? checkersView
   const [sceneSfx, setSceneSfx] = useState<{ name: SfxName; n: number } | null>(null)
   const onGolfSfx = useCallback((name: SfxName) => setSceneSfx((s) => ({ name, n: (s?.n ?? 0) + 1 })), [])
   const golfRef = useRef(golfView)
@@ -356,7 +363,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   const ghostStyles = useRef(new Map<string, CSSProperties>())
   const narrow = useMedia('(max-width: 700px) and (orientation: portrait)')
   const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
-  const tableMode = (!!view || !!golfView || !!chessView) && showTable
+  const tableMode = (!!view || !!golfView || !!duelView) && showTable
   const hiTile = tableMode && hi && tiles.some((t) => t.id === hi) ? hi : null
   const layout: SceneLayout = hiTile ? 'faixa' : 'mesa'
   const hasView = !!game.view
@@ -383,7 +390,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     if (gameError) toast(gameError.message, 'warn')
   }, [gameError, toast])
 
-  const colorSource = view?.seats ?? golfView?.players ?? (chessView ? [chessView.white, chessView.black] : undefined)
+  const colorSource = view?.seats ?? golfView?.players ?? (duelView ? [duelView.white, duelView.black] : undefined)
   const colors = useMemo(() => Object.fromEntries((colorSource ?? []).map((x) => [x.playerId, toneOf(x.name)])), [colorSource])
   const onGolfShot = useCallback(
     (angle: number, power: number) => {
@@ -398,6 +405,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     (from: string, to: string, promo?: Promo) => gameApi.act({ type: 'move', from, to, ...(promo ? { promo } : {}) } satisfies ChessAction),
     [gameApi]
   )
+  const onCheckersMove = useCallback((path: string[]) => gameApi.act({ type: 'move', path } satisfies CheckersAction), [gameApi])
   const onTvRects = useCallback((r: Rect[]) => setRects((prev) => (sameRects(prev, r) ? prev : r)), [])
   const tilesRef2 = useRef(tiles)
   tilesRef2.current = tiles
@@ -417,7 +425,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     if (!tableMode) return undefined
     if (hiTile) return { mode: id === hiTile ? 'hi' : 'parked' }
     if (narrow) return { mode: 'strip' }
-    if (golfView || chessView) {
+    if (golfView || duelView) {
       const style = { right: CORNER_TV.edge, top: CORNER_TV.edge + idx * (CORNER_TV.h + CORNER_TV.gap), width: CORNER_TV.w, height: CORNER_TV.h }
       return { mode: 'rect', style }
     }
@@ -813,6 +821,19 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
                 </Suspense>
               </div>
             )}
+            {tableMode && checkersView && (
+              <div className="scene-host chess-host">
+                <Suspense
+                  fallback={
+                    <div className="scene-loading">
+                      <TvOff noise />
+                    </div>
+                  }
+                >
+                  <CheckersSceneLazy view={checkersView} colors={colors} reducedMotion={reducedMotion} onMove={onCheckersMove} />
+                </Suspense>
+              </div>
+            )}
             {camItems.length > 0 && (
               <CamStrip
                 items={camItems}
@@ -942,6 +963,26 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
                   const options = game.lobby?.options
                   gameApi.close()
                   gameApi.open('chess', options)
+                }}
+                onClose={gameApi.close}
+                onBackToScreens={() => setShowTable(false)}
+                musicOn={musicOn}
+                musicVolume={musicVolume}
+                onMusicOn={toggleMusic}
+                onMusicVolume={changeMusicVolume}
+              />
+            </Suspense>
+          )}
+          {tableMode && checkersView && (
+            <Suspense fallback={null}>
+              <CheckersHudLazy
+                view={checkersView}
+                canManage={!!game.lobby?.canManage}
+                onAct={gameApi.act}
+                onPlayAgain={() => {
+                  const options = game.lobby?.options
+                  gameApi.close()
+                  gameApi.open('checkers', options)
                 }}
                 onClose={gameApi.close}
                 onBackToScreens={() => setShowTable(false)}

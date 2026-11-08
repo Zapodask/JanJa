@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { DEFAULT_CHECKERS_OPTIONS, type CheckersOptions } from '../../shared/games/checkers/types'
 import { DEFAULT_CHESS_OPTIONS, type ChessMinutes, type ChessOptions } from '../../shared/games/chess/types'
 import { MAPS } from '../../shared/games/golf/maps'
 import { DEFAULT_GOLF_OPTIONS, type GolfOptions, type HoleSeconds } from '../../shared/games/golf/types'
@@ -28,10 +29,11 @@ interface Props {
 const GAMES: DropdownOption[] = [
   { value: 'poker', label: 'Poker', sub: 'De 2 a 8 pessoas, uma de cada vez', icon: 'cards' },
   { value: 'golf', label: 'Golfe', sub: 'Mini-golfe em 3D, todo mundo joga junto', icon: 'flag' },
-  { value: 'chess', label: 'Xadrez', sub: 'Duas pessoas, com relógio', icon: 'pawn' }
+  { value: 'chess', label: 'Xadrez', sub: 'Duas pessoas, com relógio', icon: 'pawn' },
+  { value: 'checkers', label: 'Damas', sub: 'Duas pessoas, regras brasileiras', icon: 'checker' }
 ]
 
-const GAME_ICON: Record<GameId, 'cards' | 'flag' | 'pawn'> = { poker: 'cards', golf: 'flag', chess: 'pawn' }
+const GAME_ICON: Record<GameId, 'cards' | 'flag' | 'pawn' | 'checker'> = { poker: 'cards', golf: 'flag', chess: 'pawn', checkers: 'checker' }
 
 const CLOCKS: DropdownOption[] = [
   { value: '5', label: '5 minutos', sub: 'Para cada um, rápido', icon: 'clock' },
@@ -86,11 +88,13 @@ function chessLabel(o: ChessOptions): string {
   return o.minutes === 0 ? 'sem relógio' : `${o.minutes} minutos para cada um`
 }
 
-export const gameTitle = (id: GameId): string => (id === 'golf' ? 'Golfe' : id === 'chess' ? 'Xadrez' : 'Mesa de Poker')
+const TITLES: Record<GameId, string> = { poker: 'Mesa de Poker', golf: 'Golfe', chess: 'Xadrez', checkers: 'Damas' }
+export const gameTitle = (id: GameId): string => TITLES[id]
 
 function lobbyLabel(lobby: GameLobby): string {
   if (lobby.gameId === 'golf') return golfLabel(lobby.options as GolfOptions)
   if (lobby.gameId === 'chess') return chessLabel(lobby.options as ChessOptions)
+  if (lobby.gameId === 'checkers') return chessLabel(lobby.options as CheckersOptions)
   return pokerLabel(lobby.options as PokerOptions)
 }
 
@@ -100,6 +104,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
   const [poker, setPoker] = useState<PokerOptions>(DEFAULT_OPTIONS)
   const [golf, setGolf] = useState<GolfOptions>(DEFAULT_GOLF_OPTIONS)
   const [chess, setChess] = useState<ChessOptions>(DEFAULT_CHESS_OPTIONS)
+  const [checkers, setCheckers] = useState<CheckersOptions>(DEFAULT_CHECKERS_OPTIONS)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -111,7 +116,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
 
   const mine = lobby?.seats.find((s) => s.you)
   const isGolf = lobby?.gameId === 'golf'
-  const isChess = lobby?.gameId === 'chess'
+  const isChess = lobby?.gameId === 'chess' || lobby?.gameId === 'checkers'
   const label = lobby ? lobbyLabel(lobby) : ''
   const where = isGolf || isChess ? 'a partida' : 'a mesa'
 
@@ -135,7 +140,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                   ariaLabel="Jogo"
                   value={pick}
                   options={GAMES}
-                  onChange={(v) => setPick(v === 'golf' || v === 'chess' ? v : 'poker')}
+                  onChange={(v) => setPick(v === 'golf' || v === 'chess' || v === 'checkers' ? v : 'poker')}
                 />
               </div>
             </div>
@@ -175,6 +180,25 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                       value={poker.buy}
                       options={BUYS}
                       onChange={(v) => setPoker({ ...poker, buy: v === 'torneio' ? 'torneio' : 'recompra' })}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : pick === 'checkers' ? (
+              <>
+                <p className="muted games-lead">
+                  Damas para duas pessoas, com as regras brasileiras: capturar é obrigatório, vale a jogada que captura mais e a dama
+                  anda longe. As cores são sorteadas.
+                </p>
+                <div className="games-options">
+                  <div className="games-opt">
+                    <span>Relógio</span>
+                    <Dropdown
+                      icon="clock"
+                      ariaLabel="Relógio de cada jogador"
+                      value={String(checkers.minutes)}
+                      options={CLOCKS}
+                      onChange={(v) => setCheckers({ minutes: ([0, 5, 10, 15].includes(Number(v)) ? Number(v) : 10) as ChessMinutes })}
                     />
                   </div>
                 </div>
@@ -232,7 +256,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
             )}
             <div className="modal-actions">
               <button onClick={onClose}>Agora não</button>
-              <button className="primary" onClick={() => api.open(pick, pick === 'golf' ? golf : pick === 'chess' ? chess : poker)}>
+              <button className="primary" onClick={() => api.open(pick, pick === 'golf' ? golf : pick === 'chess' ? chess : pick === 'checkers' ? checkers : poker)}>
                 {pick === 'poker' ? 'Abrir mesa' : 'Abrir partida'}
               </button>
             </div>

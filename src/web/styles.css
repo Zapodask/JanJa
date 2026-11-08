@@ -583,7 +583,7 @@ button.link:hover:not(:disabled) { --fg: var(--paper); }
 .golf-ranking { min-width: min(640px, 100%); }
 .golf-ranking .golf-card { font-size: 13px; }
 
-/* xadrez: tabuleiro em pixel art, placas com relógio e lances */
+/* xadrez e damas: tabuleiro em pixel art, placas com relógio e lances */
 .chess-scene { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--wall); display: grid; place-items: center; }
 .chess-stack { display: flex; flex-direction: column; }
 .chess-board-wrap { position: relative; box-shadow: 0 0 0 4px var(--rug), 0 12px 32px rgba(0, 0, 0, 0.5); border-radius: 2px; }
@@ -599,6 +599,7 @@ button.link:hover:not(:disabled) { --fg: var(--paper); }
 .chess-plate-name small { color: var(--dust); font-size: 12px; }
 .chess-plate.active .chess-plate-name { color: var(--lamp); }
 .chess-captured { display: flex; flex: 1; min-width: 0; overflow: hidden; }
+.chess-captured-list { display: flex; min-width: 0; }
 .chess-captured svg { margin-right: -6px; flex: none; }
 .chess-clock { margin-left: auto; padding: 4px 10px; border-radius: var(--r-ctl); background: var(--sofa); border: 1px solid var(--rug); color: var(--dust); font-size: 20px; font-variant-numeric: tabular-nums; }
 .chess-clock.on { color: var(--wall); background: var(--paper); border-color: var(--paper); }

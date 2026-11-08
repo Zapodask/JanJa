@@ -175,6 +175,13 @@ const PATHS = {
       <path d="M9.5 10.5h5M10.5 10.5c0 3-1 5.5-3 7.5h9c-2-2-3-4.5-3-7.5M6 21h12v-3H6z" />
     </>
   ),
+  checker: (
+    <>
+      <ellipse cx="12" cy="9" rx="8" ry="4" />
+      <path d="M4 9v5c0 2.2 3.6 4 8 4s8-1.8 8-4V9" />
+      <ellipse cx="12" cy="9" rx="4" ry="2" />
+    </>
+  ),
   music: (
     <>
       <path d="M9 18V6l10-2v12" />
