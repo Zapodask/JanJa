@@ -17,6 +17,7 @@ npm run typecheck         # 3 tsconfigs: web, worker, testes
 npm test                  # vitest (ambiente node)
 npm run test:e2e          # Chrome de verdade contra o wrangler dev
 npm run sprites           # regenera public/game/sprites.{png,json} a partir de src/web/game/art
+npm run icons             # regenera public/icons/icon-{192,512}.png (ícone do app) a partir da TV de src/web/ui/pixelData.ts
 npm run validate-commits  # confere a mensagem do último commit
 cd helper && cargo test   # helper (em Linux a injeção de input é um stub)
 ```
@@ -27,7 +28,10 @@ Antes de entregar qualquer mudança: `npm run typecheck && npm test && npx vite 
 
 | Onde | O quê |
 |---|---|
-| `src/shared/protocol.ts` | mensagens cliente/servidor (zod), `PeerState`, `MAX_PEERS = 5` |
+| `src/shared/protocol.ts` | mensagens cliente/servidor (zod), `PeerState`, canais com limite (`RoomSettings`, `Channel.limit`), chat (`ChatMessage`), teto da sala `MAX_PEERS = 100` |
+| `src/web/ui/Channels.tsx` | canais na barra lateral em árvore compacta (entrar, criar, renomear, apagar), "Outras salas" e o rodapé "Baixar" |
+| `src/web/ui/ChatPanel.tsx` | chat do canal: coluna à direita, no lugar da tela (`cheio`) ou fechado com contador |
+| `src/web/install.ts` | instalar o JanJa como app (PWA): guarda o `beforeinstallprompt`; manifesto em `public/manifest.webmanifest` |
 | `src/shared/control.ts` | protocolo do controle remoto (canal de dados id 7) |
 | `src/shared/games/` | plataforma de jogos (`types.ts`, `protocol.ts`, `registry.ts`) e o poker (`poker/engine.ts`, `evaluate.ts`, `describe.ts`) |
 | `src/worker/index.ts` | rotas e o Durable Object; **um único alarme** = o menor entre o prazo do jogo e o TTL da sala vazia |
@@ -59,7 +63,9 @@ Antes de entregar qualquer mudança: `npm run typecheck && npm test && npx vite 
 - **Pixi só no chunk da mesa.** A cena e o áudio do jogo carregam por `import()` em `src/web/game/loaders.ts`. Não importe `pixi.js` nem `gsap` fora de `src/web/game/scene` e `audio`.
 - **Tela x câmera x mic no receptor** são separados pelo `PeerState`: `screenStreamId` e `camStreamId`. Publique o estado **antes** de adicionar a trilha (`publishState` e depois `manager.startX`), senão o vídeo chega sem classificação.
 - **Jogos são puros.** Motor recebe `GameCtx { now, rng }`; nunca use `Date.now()` ou `Math.random()` dentro de `src/shared/games`. Cada conexão recebe só a própria `view`: nunca coloque cartas de outra pessoa na visão fora do showdown.
-- **Uma sala tem no máximo 5 pessoas** (`MAX_PEERS`); o poker aceita até 8, então na prática são 5.
+- **Canais e limite.** A sala tem canais (padrão: só "Geral", sem limite) que o host cria, edita e apaga; **cada canal tem o seu limite** (`Channel.limit`, `0`/ausente = sem limite, escolhido ao criar e editável pelo lápis; baixar não tira ninguém), gravados no `RoomConfig`. Canal cheio recusa `channel-join` (`channel-full`); quem chega cai no primeiro canal com vaga, e se todos estiverem cheios não entra (o host entra). A sala em si não tem limite visível: só o teto de segurança `MAX_PEERS = 100`. A mídia continua P2P **dentro do canal**: o `useRoom` só chama `manager.addPeer` para quem está no mesmo canal e refaz as conexões no `peer-moved`. Acima de `HEAVY_CHANNEL` (8) pessoas num canal a malha pesa e a interface avisa; mais que isso só com servidor de mídia (SFU). O host sempre entra, mesmo com a sala cheia. O poker é da sala inteira (aceita até 8).
+- **Nome da sala ("servidor").** Escolhido na Home ao criar (vazio = "Sala de <apelido>"), mostrado no topo da barra lateral (`ServerCard`) e no título da aba; só o dono troca (`room-rename`). Fica em `RoomConfig.name` e vai em `RoomSettings.name`; sala antiga sem nome usa `DEFAULT_ROOM_NAME`. "Outros servidores" lista as salas recentes pelo nome (`RecentRoom.name`).
+- **Chat do canal** passa pelo servidor (`chat-send` / `chat` / `chat-history`), só para quem está no canal. O Durable Object guarda as últimas `CHAT_HISTORY` (50) por canal em `chat:<canal>`; apagar o canal apaga o chat; limite de 8 mensagens a cada 10 s por pessoa (`chat-flood`).
 - Mudou a arte? Rode `npm run sprites` e versione `public/game/sprites.*`.
 
 ## Pegadinhas de UI conhecidas

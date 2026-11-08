@@ -3,6 +3,7 @@ import {
   CreateRoomRequestSchema,
   MAX_MESSAGE_BYTES,
   ROOM_ID_RE,
+  type ChatMessage,
   type CreateRoomResponse,
   type IceServer,
   type ServerMessage
@@ -61,6 +62,8 @@ async function turnServers(env: Env): Promise<IceServer[]> {
 export class Room extends DurableObject<Env> {
   private config?: RoomConfig
   private game?: GameSnapshot
+  /** histórico do chat por canal (chave "chat:<canal>" no storage) */
+  private chat: Record<string, ChatMessage[]> = {}
   /** quando a sala vazia expira (o alarme real é o mínimo entre isto e o prazo do jogo) */
   private ttlAt = 0
   private alarmAt?: number
@@ -72,11 +75,23 @@ export class Room extends DurableObject<Env> {
     ctx.blockConcurrencyWhile(async () => {
       this.config = await ctx.storage.get<RoomConfig>('config')
       this.game = await ctx.storage.get<GameSnapshot>('game')
+      const chats = await ctx.storage.list<ChatMessage[]>({ prefix: 'chat:' })
+      for (const [key, messages] of chats) this.chat[key.slice('chat:'.length)] = messages
       this.ttlAt = (await ctx.storage.get<number>('ttlAt')) ?? Date.now() + EMPTY_ROOM_TTL_MS
     })
     this.core = new RoomCore({
       conns: () => ctx.getWebSockets().map((ws) => this.conn(ws)),
       config: () => this.config,
+      saveConfig: (config) => {
+        this.config = config
+        // sem await: como no jogo, a gravação sai antes das mensagens (output gate)
+        void ctx.storage.put('config', config)
+      },
+      loadChat: () => this.chat,
+      saveChat: (channelId, messages) => {
+        if (messages) void ctx.storage.put(`chat:${channelId}`, messages)
+        else void ctx.storage.delete(`chat:${channelId}`)
+      },
       hash: sha256,
       newId: () => randomId(9),
       iceServers: () => turnServers(env),
@@ -192,7 +207,9 @@ export class Room extends DurableObject<Env> {
       }
       this.config = undefined
       this.game = undefined
+      this.chat = {}
       this.core.game.reset()
+      this.core.resetChat()
       await this.ctx.storage.deleteAll()
       return
     }
@@ -224,7 +241,8 @@ export default {
       const hostKey = randomId(24)
       await env.ROOMS.getByName(roomId).init({
         hostKeyHash: await sha256(hostKey),
-        requireApproval: parsed.data.requireApproval
+        requireApproval: parsed.data.requireApproval,
+        name: parsed.data.name
       })
       return json({ roomId, hostKey } satisfies CreateRoomResponse, 201)
     }
