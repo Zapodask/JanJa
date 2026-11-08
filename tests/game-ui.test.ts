@@ -69,7 +69,7 @@ describe('estado do jogo (reducer)', () => {
     let s = gameReducer(initialGameState, { type: 'game-lobby', lobby: lobby({ started: true }) })
     s = gameReducer(s, { type: 'game-view', seq: 5, view: view({ handNo: 5 }) })
     const velha = gameReducer(s, { type: 'game-view', seq: 4, view: view({ handNo: 4 }) })
-    expect(velha.view?.handNo).toBe(5)
+    expect((velha.view as PokerView | null)?.handNo).toBe(5)
     expect(velha.viewSeq).toBe(5)
   })
   it('eventos ficam em lastEvents com o seq', () => {

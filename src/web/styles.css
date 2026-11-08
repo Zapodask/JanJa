@@ -557,6 +557,31 @@ button.link:hover:not(:disabled) { --fg: var(--paper); }
 .hands-table li { display: grid; grid-template-columns: 112px 1fr; gap: 0 8px; padding: 4px 6px; border-radius: var(--r-ctl); counter-increment: h; }
 .hands-table li:nth-child(odd) { background: var(--wall); }
 .hand-name { color: var(--lamp); }
+
+/* golfe: cena 3D e placar */
+.golf-scene { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--wall); }
+.golf-canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; cursor: grab; outline: none; }
+.golf-canvas:active { cursor: grabbing; }
+.golf-canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--lamp); }
+.golf-strokes { display: flex; align-items: center; gap: 8px; color: var(--dust); font-size: 12px; line-height: 1.2; }
+.golf-big { font-size: 32px; color: var(--lamp); font-variant-numeric: tabular-nums; }
+.golf-hurry { color: var(--lamp); }
+.golf-card-pop { position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); width: min(720px, calc(100% - 32px)); background: var(--sofa); border: 1px solid var(--rug); border-radius: var(--r-panel); padding: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); z-index: 20; }
+.golf-card-wrap { overflow-x: auto; width: 100%; }
+.golf-card { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+.golf-card th, .golf-card td { padding: 4px 6px; text-align: center; white-space: nowrap; }
+.golf-card th[scope="row"] { text-align: left; font-weight: 500; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.golf-card thead th { color: var(--dust); font-weight: 500; }
+.golf-card thead th.cur { color: var(--lamp); }
+.golf-card tr.par td, .golf-card tr.par th { color: var(--dust); border-bottom: 1px solid var(--rug); }
+.golf-card tbody tr:nth-child(odd) { background: var(--wall); }
+.golf-card tr.me th[scope="row"] { color: var(--lamp); }
+.golf-card td.under { color: var(--lamp); }
+.golf-card td.over { color: var(--dust); }
+.golf-card td.tot small { color: var(--dust); font-size: 12px; }
+.golf-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.golf-ranking { min-width: min(640px, 100%); }
+.golf-ranking .golf-card { font-size: 13px; }
 .hand-ex { color: var(--paper); }
 .hand-hint { grid-column: 2; color: var(--dust); font-size: 13px; }
 

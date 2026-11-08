@@ -11,10 +11,12 @@ import { canShareScreen, canUseCamera, useRoom } from '../useRoom'
 import { CamFocus, CamStrip, type CamItem } from './Cams'
 import { ChannelList, DownloadBox, OtherRooms, ServerCard } from './Channels'
 import { ChatPanel, type ChatMode } from './ChatPanel'
-import type { Rect, SceneLayout } from '../game/contract'
+import type { GolfView } from '../../shared/games/golf/types'
+import type { PokerView } from '../../shared/games/poker/types'
+import type { EventBatch, Rect, SceneLayout, SfxName } from '../game/contract'
 import { GameAudioDriver } from '../game/GameAudioDriver'
 import { sameRects, shortcutAction, shouldInvite } from '../game/helpers'
-import { loadScene } from '../game/loaders'
+import { loadGolfScene, loadScene } from '../game/loaders'
 import { Avatar, toneOf } from './Avatar'
 import { GameInvite } from './GameInvite'
 import { GamesPanel } from './GamesPanel'
@@ -34,6 +36,12 @@ import { TourPrompt } from './TourPrompt'
 // a mesa (Pixi, GSAP, HUD) só é baixada quando há partida
 const PokerSceneLazy = lazy(loadScene)
 const PokerHudLazy = lazy(() => import('./PokerHud').then((m) => ({ default: m.PokerHud })))
+// o golfe (Three.js) também só baixa quando há partida de golfe
+const GolfSceneLazy = lazy(loadGolfScene)
+const GolfHudLazy = lazy(() => import('./GolfHud').then((m) => ({ default: m.GolfHud })))
+
+/** onde ficam as telas compartilhadas durante o golfe: miniaturas empilhadas no canto de cima */
+const GOLF_TV = { w: 208, h: 117, gap: 8, edge: 12 }
 
 function useMedia(query: string): boolean {
   const [on, setOn] = useState(() => matchMedia(query).matches)
@@ -321,8 +329,14 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   }, [tiles])
   const shown = [...tiles, ...ghosts.filter((g) => !tiles.some((t) => t.id === g.id))]
 
-  // ---------- jogo (poker) ----------
-  const view = game.view
+  // ---------- jogos (poker e golfe) ----------
+  const gameId = game.lobby?.gameId
+  const view = gameId === 'poker' && game.view ? (game.view as PokerView) : null
+  const golfView = gameId === 'golf' && game.view ? (game.view as GolfView) : null
+  const [sceneSfx, setSceneSfx] = useState<{ name: SfxName; n: number } | null>(null)
+  const onGolfSfx = useCallback((name: SfxName) => setSceneSfx((s) => ({ name, n: (s?.n ?? 0) + 1 })), [])
+  const golfRef = useRef(golfView)
+  golfRef.current = golfView
   const seated = !!game.lobby?.seats.some((x) => x.you)
   const [panelOpen, setPanelOpen] = useState(false)
   const [showTable, setShowTable] = useState(true)
@@ -337,10 +351,10 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   const ghostStyles = useRef(new Map<string, CSSProperties>())
   const narrow = useMedia('(max-width: 700px) and (orientation: portrait)')
   const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
-  const tableMode = !!view && showTable
+  const tableMode = (!!view || !!golfView) && showTable
   const hiTile = tableMode && hi && tiles.some((t) => t.id === hi) ? hi : null
   const layout: SceneLayout = hiTile ? 'faixa' : 'mesa'
-  const hasView = !!view
+  const hasView = !!game.view
 
   useEffect(() => {
     if (hasView) {
@@ -364,9 +378,16 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     if (gameError) toast(gameError.message, 'warn')
   }, [gameError, toast])
 
-  const colors = useMemo(
-    () => Object.fromEntries((view?.seats ?? []).map((x) => [x.playerId, toneOf(x.name)])),
-    [view?.seats]
+  const colorSource = view?.seats ?? golfView?.players
+  const colors = useMemo(() => Object.fromEntries((colorSource ?? []).map((x) => [x.playerId, toneOf(x.name)])), [colorSource])
+  const onGolfShot = useCallback(
+    (angle: number, power: number) => {
+      const v = golfRef.current
+      const me = v?.players.find((p) => p.playerId === v.you?.playerId)
+      if (!v || !me) return
+      gameApi.act({ type: 'shot', hole: v.hole, stroke: me.strokes, angle, power })
+    },
+    [gameApi]
   )
   const onTvRects = useCallback((r: Rect[]) => setRects((prev) => (sameRects(prev, r) ? prev : r)), [])
   const tilesRef2 = useRef(tiles)
@@ -387,6 +408,10 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     if (!tableMode) return undefined
     if (hiTile) return { mode: id === hiTile ? 'hi' : 'parked' }
     if (narrow) return { mode: 'strip' }
+    if (golfView) {
+      const style = { right: GOLF_TV.edge, top: GOLF_TV.edge + idx * (GOLF_TV.h + GOLF_TV.gap), width: GOLF_TV.w, height: GOLF_TV.h }
+      return { mode: 'rect', style }
+    }
     const r = idx < tiles.length ? rects[idx] : undefined
     if (r) {
       const style = { left: r.x, top: r.y, width: r.w, height: r.h }
@@ -734,7 +759,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
                 >
                   <PokerSceneLazy
                     view={view}
-                    lastEvents={game.lastEvents}
+                    lastEvents={game.lastEvents as EventBatch | null}
                     me={game.me}
                     colors={colors}
                     tvCount={tiles.length}
@@ -742,6 +767,26 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
                     reducedMotion={reducedMotion}
                     onTvRects={onTvRects}
                     onTvClick={onTvClick}
+                  />
+                </Suspense>
+              </div>
+            )}
+            {tableMode && golfView && (
+              <div className="scene-host golf-host">
+                <Suspense
+                  fallback={
+                    <div className="scene-loading">
+                      <TvOff noise />
+                    </div>
+                  }
+                >
+                  <GolfSceneLazy
+                    view={golfView}
+                    me={game.me}
+                    colors={colors}
+                    reducedMotion={reducedMotion}
+                    onShot={onGolfShot}
+                    onSfx={onGolfSfx}
                   />
                 </Suspense>
               </div>
@@ -831,7 +876,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
                 onPlayAgain={() => {
                   const options = view.options
                   gameApi.close()
-                  gameApi.open(options)
+                  gameApi.open('poker', options)
                 }}
                 onCloseTable={gameApi.close}
                 onBackToScreens={() => setShowTable(false)}
@@ -844,12 +889,34 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
               />
             </Suspense>
           )}
+          {tableMode && golfView && (
+            <Suspense fallback={null}>
+              <GolfHudLazy
+                view={golfView}
+                me={game.me}
+                colors={colors}
+                canManage={!!game.lobby?.canManage}
+                onPlayAgain={() => {
+                  const options = game.lobby?.options
+                  gameApi.close()
+                  gameApi.open('golf', options)
+                }}
+                onClose={gameApi.close}
+                onBackToScreens={() => setShowTable(false)}
+                musicOn={musicOn}
+                musicVolume={musicVolume}
+                onMusicOn={toggleMusic}
+                onMusicVolume={changeMusicVolume}
+              />
+            </Suspense>
+          )}
           {/* chat no lugar da tela: a tela continua montada (e tocando) por baixo */}
           {chatMode === 'cheio' && chatPanel}
         </div>
 
         {inviteVisible && game.lobby && (
           <GameInvite
+            gameId={game.lobby.gameId}
             openedBy={game.lobby.openedBy}
             onSit={() => {
               gameApi.sit()
@@ -995,9 +1062,11 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
       )}
       {game.lobby && (
         <GameAudioDriver
+          gameId={game.lobby.gameId}
           seated={seated}
           started={game.lobby.started}
           lastEvents={game.lastEvents}
+          sceneSfx={sceneSfx}
           soundsOn={soundsOn}
           musicOn={musicOn}
           musicVolume={musicVolume}

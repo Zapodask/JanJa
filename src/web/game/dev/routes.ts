@@ -7,7 +7,7 @@
  *     if (route) { const Page = lazy(route.load); ... }
  *   }
  *
- * A rota do laboratório de áudio é /dev/audio. O agente CENA acrescenta /dev/poker (SceneLab) aqui.
+ * Laboratórios: /dev/audio, /dev/poker (SceneLab) e /dev/golf (GolfLab, o motor do golfe rodando local).
  */
 import type { ComponentType } from 'react'
 
@@ -18,5 +18,6 @@ export interface DevRoute {
 
 export const DEV_ROUTES: DevRoute[] = [
   { path: '/dev/audio', load: () => import('./AudioLab') },
-  { path: '/dev/poker', load: () => import('./SceneLab').then((m) => ({ default: m.SceneLab })) }
+  { path: '/dev/poker', load: () => import('./SceneLab').then((m) => ({ default: m.SceneLab })) },
+  { path: '/dev/golf', load: () => import('./GolfLab').then((m) => ({ default: m.GolfLab })) }
 ]

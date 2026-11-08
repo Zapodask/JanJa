@@ -1,5 +1,6 @@
 /** Funções puras da SALA do jogo: botões, atalhos, sons, textos. Sem React nem DOM (testáveis em Node). */
 import { rankName, rankValue, SUIT_NAME, suitOf } from '../../shared/games/poker/cards'
+import type { GolfEvent } from '../../shared/games/golf/types'
 import type { Card, LegalAction, PokerAction, PokerEvent, PokerMode, PokerView } from '../../shared/games/poker/types'
 import type { MusicTrack, Rect, SfxName } from './contract'
 
@@ -101,6 +102,26 @@ export function trackForEvent(ev: PokerEvent): MusicTrack | null {
   if (ev.kind === 'act' && ev.action === 'allin') return 'tensao'
   if (ev.kind === 'end') return 'vitoria'
   if (ev.kind === 'shuffle') return 'calma'
+  return null
+}
+
+/** Som de um evento do golfe. Água, tabela e o buraco vêm da simulação local (a cena avisa). */
+export function golfSfxForEvent(ev: GolfEvent): SfxCue | null {
+  switch (ev.type) {
+    case 'shot':
+      return { name: 'putt' }
+    case 'hole-end':
+      return { name: 'win' }
+    case 'game-over':
+      return { name: 'podium' }
+    default:
+      return null
+  }
+}
+
+export function golfTrackForEvent(ev: GolfEvent): MusicTrack | null {
+  if (ev.type === 'game-over') return 'vitoria'
+  if (ev.type === 'hole-start') return 'calma'
   return null
 }
 

@@ -198,7 +198,7 @@ describe('sequenciador', () => {
 })
 
 describe('efeitos', () => {
-  const names: SfxName[] = ['shuffle', 'deal', 'flip', 'chip', 'check', 'fold', 'turn', 'allin', 'win', 'rebuy', 'podium']
+  const names: SfxName[] = ['shuffle', 'deal', 'flip', 'chip', 'check', 'fold', 'turn', 'allin', 'win', 'rebuy', 'podium', 'putt', 'cup', 'splash', 'bounce']
   it.each(names)('%s tem plano válido e curto', (n) => {
     const plan = sfxPlan(n)
     expect(plan.length).toBeGreaterThan(0)

@@ -163,6 +163,12 @@ const PATHS = {
       <path d="M9 4l9.5 2.5a2 2 0 0 1 1.4 2.4L17.5 18M7.5 11.5h.01" />
     </>
   ),
+  flag: (
+    <>
+      <path d="M7 21V3.5l10 4-10 4" />
+      <ellipse cx="9" cy="21" rx="5" ry="1.2" />
+    </>
+  ),
   music: (
     <>
       <path d="M9 18V6l10-2v12" />

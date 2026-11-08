@@ -5,6 +5,7 @@
  * - ÁUDIO: música chiptune e efeitos, gerados em Web Audio.
  */
 import type { GameLobby } from '../../shared/games/protocol'
+import type { GolfView } from '../../shared/games/golf/types'
 import type { PokerEvent, PokerView } from '../../shared/games/poker/types'
 
 // ---------------- estado do jogo no cliente (SALA produz, CENA e ÁUDIO consomem) ----------------
@@ -14,11 +15,18 @@ export interface EventBatch {
   events: PokerEvent[]
 }
 
+/** lote de eventos de qualquer jogo (cada jogo estreita pelo `lobby.gameId`) */
+export interface RawEventBatch {
+  seq: number
+  events: unknown[]
+}
+
 export interface GameClientState {
   lobby: GameLobby | null
-  view: PokerView | null
+  /** visão do jogo aberto: PokerView ou GolfView, conforme `lobby.gameId` */
+  view: unknown
   /** último lote de eventos recebido (a CENA anima a partir dele; o seq evita animar duas vezes) */
-  lastEvents: EventBatch | null
+  lastEvents: RawEventBatch | null
   /** meu playerId na partida (null = espectador ou fora) */
   me: string | null
 }
@@ -57,6 +65,19 @@ export interface PokerSceneProps {
   onAnchors?: (anchors: { myHand?: Rect; pot?: Rect; seats: Record<string, Rect> }) => void
 }
 
+/** Cena 3D do golfe (Three.js). Não posiciona TVs: as telas ficam em miniatura no canto. */
+export interface GolfSceneProps {
+  view: GolfView
+  me: string | null
+  /** cor de cada jogador, por playerId */
+  colors: Record<string, string>
+  reducedMotion: boolean
+  /** tacada pronta (a SALA manda para o servidor) */
+  onShot: (angle: number, power: number) => void
+  /** som disparado pela simulação local (água, tabela, buraco) */
+  onSfx?: (name: SfxName) => void
+}
+
 // ---------------- ÁUDIO ----------------
 
 export type MusicTrack = 'calma' | 'tensao' | 'vitoria'
@@ -75,4 +96,20 @@ export interface GameAudio {
   dispose(): void
 }
 
-export type SfxName = 'shuffle' | 'deal' | 'flip' | 'chip' | 'check' | 'fold' | 'turn' | 'allin' | 'win' | 'rebuy' | 'podium'
+export type SfxName =
+  | 'shuffle'
+  | 'deal'
+  | 'flip'
+  | 'chip'
+  | 'check'
+  | 'fold'
+  | 'turn'
+  | 'allin'
+  | 'win'
+  | 'rebuy'
+  | 'podium'
+  // golfe
+  | 'putt'
+  | 'cup'
+  | 'splash'
+  | 'bounce'

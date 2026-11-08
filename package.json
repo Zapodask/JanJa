@@ -30,6 +30,7 @@
     "pixi.js": "^8.22.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "three": "^0.181.2",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -38,6 +39,7 @@
     "@types/pngjs": "^6.0.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.181.0",
     "@vitejs/plugin-react": "^6.2.1",
     "concurrently": "^10.0.6",
     "esbuild": "^0.28.2",

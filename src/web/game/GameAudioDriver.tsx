@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAudioLevel } from '../audio'
-import type { GameAudio, EventBatch } from './contract'
-import { duckFromLevel, sfxForEvent, trackForEvent } from './helpers'
+import type { GolfEvent } from '../../shared/games/golf/types'
+import type { PokerEvent } from '../../shared/games/poker/types'
+import type { GameId } from '../../shared/games/protocol'
+import type { GameAudio, RawEventBatch, SfxName } from './contract'
+import { duckFromLevel, golfSfxForEvent, golfTrackForEvent, sfxForEvent, trackForEvent } from './helpers'
 import { loadAudio } from './loaders'
 
 export interface MicProbe {
@@ -12,9 +15,12 @@ export interface MicProbe {
 }
 
 interface Props {
+  gameId: GameId
   seated: boolean
   started: boolean
-  lastEvents: EventBatch | null
+  lastEvents: RawEventBatch | null
+  /** sons pedidos pela cena (golfe: água, tabela, buraco); `n` sobe a cada um */
+  sceneSfx?: { name: SfxName; n: number } | null
   /** sons de aviso da sala (o sino) */
   soundsOn: boolean
   musicOn: boolean
@@ -37,7 +43,7 @@ function Probe({ id, stream, muted, onLevel }: MicProbe & { onLevel: (id: string
  * Cuida do áudio da mesa: cria o GameAudio (lazy) depois do primeiro gesto, liga a música para quem está
  * sentado, toca os sfx dos eventos e abaixa a música quando alguém fala. Não desenha nada.
  */
-export function GameAudioDriver({ seated, started, lastEvents, soundsOn, musicOn, musicVolume, inviteSeq, mics }: Props) {
+export function GameAudioDriver({ gameId, seated, started, lastEvents, sceneSfx, soundsOn, musicOn, musicVolume, inviteSeq, mics }: Props) {
   const audio = useRef<GameAudio | null>(null)
   const [ready, setReady] = useState(false)
   const [gesture, setGesture] = useState(false)
@@ -84,19 +90,27 @@ export function GameAudioDriver({ seated, started, lastEvents, soundsOn, musicOn
   }, [ready, musicVolume])
 
   // eventos novos viram sfx e troca de faixa (o lote que já existia ao montar não toca de novo)
-  const handled = useRef<EventBatch | null>(lastEvents)
+  const handled = useRef<RawEventBatch | null>(lastEvents)
   useEffect(() => {
     if (!lastEvents || lastEvents === handled.current) return
     handled.current = lastEvents
     const a = audio.current
     if (!ready || !a) return
     for (const ev of lastEvents.events) {
-      const cue = sfxForEvent(ev)
+      const cue = gameId === 'golf' ? golfSfxForEvent(ev as GolfEvent) : sfxForEvent(ev as PokerEvent)
       if (cue && soundsOn) a.sfx(cue.name, cue.count ? { count: cue.count } : undefined)
-      const track = trackForEvent(ev)
+      const track = gameId === 'golf' ? golfTrackForEvent(ev as GolfEvent) : trackForEvent(ev as PokerEvent)
       if (track && wantMusic) a.setTrack(track)
     }
-  }, [lastEvents, ready, soundsOn, wantMusic])
+  }, [lastEvents, ready, soundsOn, wantMusic, gameId])
+
+  // sons da cena (simulação local do golfe)
+  const lastScene = useRef(sceneSfx?.n ?? 0)
+  useEffect(() => {
+    if (!sceneSfx || sceneSfx.n === lastScene.current) return
+    lastScene.current = sceneSfx.n
+    if (ready && soundsOn) audio.current?.sfx(sceneSfx.name)
+  }, [sceneSfx, ready, soundsOn])
 
   // convite novo: embaralhar
   const lastInvite = useRef(inviteSeq)

@@ -93,6 +93,28 @@ export function sfxPlan(name: SfxName, count = 1): SfxVoice[] {
       v.push({ kind: 'noise', t: 0.72, dur: 0.35, vel: 0.2, filter: { type: 'highpass', freq: 6000 } })
       return v
     }
+    // ---------- golfe ----------
+    case 'putt':
+      // "toc" do taco na bola
+      return [
+        { kind: 'tri', t: 0, dur: 0.06, freq: 900, freqEnd: 420, vel: 0.45 },
+        { kind: 'noise', t: 0, dur: 0.025, vel: 0.35, filter: { type: 'bandpass', freq: 2600, q: 3 } }
+      ]
+    case 'cup':
+      // bola caindo no copo e um "plim"
+      return [
+        { kind: 'tri', t: 0, dur: 0.05, freq: 300, freqEnd: 150, vel: 0.4 },
+        { kind: 'tri', t: 0.09, dur: 0.04, freq: 260, freqEnd: 140, vel: 0.3 },
+        { kind: 'pulse', t: 0.18, dur: 0.12, freq: hz('G5'), vel: 0.16, duty: 0.25 },
+        { kind: 'pulse', t: 0.28, dur: 0.3, freq: hz('C6'), vel: 0.16, duty: 0.25 }
+      ]
+    case 'splash':
+      return [
+        { kind: 'noise', t: 0, dur: 0.4, vel: 0.35, attack: 0.02, filter: { type: 'lowpass', freq: 2400, freqEnd: 500, q: 1 } },
+        { kind: 'sine', t: 0, dur: 0.18, freq: 500, freqEnd: 180, vel: 0.2 }
+      ]
+    case 'bounce':
+      return [click(0, 0.3, 1800), { kind: 'tri', t: 0, dur: 0.04, freq: 340, freqEnd: 220, vel: 0.25 }]
   }
 }
 

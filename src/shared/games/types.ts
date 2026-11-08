@@ -44,6 +44,11 @@ export interface GameDefinition<State, Options, Action, View, Event> {
   name: string
   minPlayers: number
   maxPlayers: number
+  /**
+   * Todos jogam ao mesmo tempo (ex.: golfe). O servidor aceita ações com `seq` antigo e o jogo
+   * valida sozinho se a ação ainda vale. Sem isto, só a ação feita sobre a visão mais nova vale.
+   */
+  concurrent?: boolean
   /** valida/normaliza opções vindas do cliente (o servidor nunca confia nelas cruas) */
   parseOptions(raw: unknown): Options | GameError
   setup(players: PlayerRef[], options: Options, ctx: GameCtx): Step<State, Event>

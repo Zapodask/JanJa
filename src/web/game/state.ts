@@ -1,4 +1,3 @@
-import type { PokerEvent, PokerView } from '../../shared/games/poker/types'
 import type { GameLobby } from '../../shared/games/protocol'
 import type { ServerMessage } from '../../shared/protocol'
 import type { GameClientState } from './contract'
@@ -19,8 +18,9 @@ export const isGameMsg = (m: ServerMessage): m is GameMsg =>
 const isObject = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null
 
 /** Meu playerId: pela cadeira marcada como "você" no lobby, ou pela visão privada. */
-export function meOf(lobby: GameLobby | null, view: PokerView | null): string | null {
-  return lobby?.seats.find((s) => s.you)?.playerId ?? view?.you?.playerId ?? null
+export function meOf(lobby: GameLobby | null, view: unknown): string | null {
+  const you = isObject(view) && isObject(view.you) && typeof view.you.playerId === 'string' ? view.you.playerId : null
+  return lobby?.seats.find((s) => s.you)?.playerId ?? you
 }
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
@@ -37,10 +37,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
     case 'game-view': {
       if (action.seq < state.viewSeq || !isObject(action.view)) return state
-      const view = action.view as unknown as PokerView
+      const view: unknown = action.view
       return { ...state, view, viewSeq: action.seq, me: meOf(state.lobby, view) }
     }
     case 'game-events':
-      return { ...state, lastEvents: { seq: action.seq, events: action.events as PokerEvent[] } }
+      return { ...state, lastEvents: { seq: action.seq, events: action.events } }
   }
 }
