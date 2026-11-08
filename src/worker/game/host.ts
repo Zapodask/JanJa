@@ -1,4 +1,4 @@
-import type { GameLobby, GameId } from '../../shared/games/protocol'
+import { RELAY_MAX_PER_SEC, type GameLobby, type GameId } from '../../shared/games/protocol'
 import { GAMES, type GameRegistry } from '../../shared/games/registry'
 import { isGameError, type AnyGame, type GameCtx, type PlayerRef, type Rng, type Step } from '../../shared/games/types'
 import type { ClientMessage, ServerMessage } from '../../shared/protocol'
@@ -57,10 +57,13 @@ const identityOf = (c: HostConn): string | undefined => {
 }
 
 const MAX_ADVANCE = 20
+const RELAY_WINDOW_MS = 1000
 
 export class GameHost {
   private s?: GameSnapshot
   private loaded = false
+  /** janela de 1 s do repasse, por conexão (peerId) */
+  private readonly relayWindows = new Map<string, { start: number; count: number }>()
 
   constructor(private readonly deps: GameHostDeps) {}
 
@@ -195,6 +198,7 @@ export class GameHost {
   onClose(closed: { peerId?: string; clientId?: string }): void {
     const s = this.session()
     if (!s) return
+    if (closed.peerId) this.relayWindows.delete(closed.peerId)
     const id = closed.clientId ?? (closed.peerId ? `p:${closed.peerId}` : undefined)
     const seat = id ? s.seats.find((x) => x.clientId === id) : undefined
     if (!seat || this.isPresent(seat.clientId)) return
@@ -208,6 +212,7 @@ export class GameHost {
     const me = identityOf(conn)
     if (!me) return
 
+    if (msg.type === 'game-relay') return this.relay(s, conn, msg.to, msg.data)
     if (msg.type === 'game-open') return this.open(conn, me, msg.gameId, msg.options)
     if (!s) return this.err(conn, 'sem-jogo', 'Não há jogo aberto.')
 
@@ -225,6 +230,28 @@ export class GameHost {
         this.s = undefined
         this.persist()
         return this.broadcastLobby()
+    }
+  }
+
+  /** Repasse em tempo real: só entre sentados de uma partida iniciada; nada é guardado nem respondido com erro. */
+  private relay(s: GameSnapshot | undefined, conn: HostConn, to: string, data: string): void {
+    if (!s || !s.started) return
+    const seat = this.seatOf(s, conn)
+    if (!seat) return
+    const peerId = conn.data().peerId
+    if (peerId) {
+      const now = this.deps.now()
+      let w = this.relayWindows.get(peerId)
+      if (!w || now - w.start >= RELAY_WINDOW_MS || now < w.start) {
+        w = { start: now, count: 0 }
+        this.relayWindows.set(peerId, w)
+      }
+      if (++w.count > RELAY_MAX_PER_SEC) return
+    }
+    const msg: ServerMessage = { type: 'game-relay', from: seat.playerId, data }
+    const targets = s.seats.filter((x) => (to === '*' ? x.playerId !== seat.playerId : x.playerId === to && x.playerId !== seat.playerId))
+    for (const t of targets) {
+      for (const c of this.conns()) if (identityOf(c) === t.clientId) c.send(msg)
     }
   }
 
@@ -253,7 +280,19 @@ export class GameHost {
     const g = this.game(s)
     const mine = this.seatOf(s, conn)
     if (s.started) {
-      return mine ? this.sendLobby(s, conn) : this.err(conn, 'ja-comecou', 'A partida já começou.')
+      if (mine) return this.sendLobby(s, conn)
+      if (!g.addPlayer || this.over(s)) return this.err(conn, 'ja-comecou', 'A partida já começou.')
+      const free = (n: number) => n < g.maxPlayers && !s.seats.some((x) => x.seat === n)
+      const seat = want !== undefined && free(want) ? want : Array.from({ length: g.maxPlayers }, (_, i) => i).find(free)
+      if (seat === undefined) return this.err(conn, 'mesa-cheia', 'A mesa está cheia.')
+      const rec: SeatRec = { seat, clientId: me, playerId: this.deps.newId(), name: conn.data().name ?? 'Jogador' }
+      const step = g.addPlayer(s.state, { playerId: rec.playerId, name: rec.name }, this.ctx())
+      if (isGameError(step)) return this.err(conn, step.error, step.message)
+      s.seats.push(rec)
+      this.persist()
+      this.broadcastLobby()
+      this.commit(s, step)
+      return
     }
     const free = (n: number) => n < g.maxPlayers && !s.seats.some((x) => x.seat === n && x !== mine)
     let seat = want

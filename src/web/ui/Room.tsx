@@ -14,11 +14,13 @@ import { ChatPanel, type ChatMode } from './ChatPanel'
 import type { CheckersAction, CheckersView } from '../../shared/games/checkers/types'
 import type { ChessAction, ChessView, Promo } from '../../shared/games/chess/types'
 import type { GolfView } from '../../shared/games/golf/types'
+import type { ShooterView } from '../../shared/games/shooter/types'
 import type { PokerView } from '../../shared/games/poker/types'
 import type { TycoonAction, TycoonView } from '../../shared/games/tycoon/types'
-import type { EventBatch, Rect, SceneLayout, SfxName } from '../game/contract'
+import type { EventBatch, MusicTrack, Rect, SceneLayout, SfxName } from '../game/contract'
 import { GameAudioDriver } from '../game/GameAudioDriver'
 import { sameRects, shortcutAction, shouldInvite } from '../game/helpers'
+import { createSfxBus } from '../game/shooter/sfxBus'
 import { loadCheckersScene, loadChessScene, loadGolfScene, loadScene, loadTycoonScene } from '../game/loaders'
 import { Avatar, toneOf } from './Avatar'
 import { GameInvite } from './GameInvite'
@@ -51,6 +53,8 @@ const CheckersHudLazy = lazy(() => import('./CheckersHud').then((m) => ({ defaul
 // e o do Magnata
 const TycoonSceneLazy = lazy(loadTycoonScene)
 const TycoonHudLazy = lazy(() => import('./TycoonHud').then((m) => ({ default: m.TycoonHud })))
+// e o Tiro na Sala (a cena Pixi dele ainda é outro pedaço, baixado por loadShooterScene)
+const ShooterStageLazy = lazy(() => import('./ShooterStage').then((m) => ({ default: m.ShooterStage })))
 
 /** onde ficam as telas compartilhadas durante o golfe e os jogos de tabuleiro: miniaturas empilhadas no canto de cima */
 const CORNER_TV = { w: 208, h: 117, gap: 8, edge: 12 }
@@ -350,6 +354,9 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   const tycoonView = gameId === 'tycoon' && game.view ? (game.view as TycoonView) : null
   const tycoonRef = useRef(tycoonView)
   tycoonRef.current = tycoonView
+  const shooterView = gameId === 'shooter' && game.view ? (game.view as ShooterView) : null
+  const shooterBus = useMemo(() => createSfxBus(), [])
+  const [shooterTrack, setShooterTrack] = useState<MusicTrack | null>(null)
   /** jogo de tabuleiro para dois (xadrez ou damas) */
   const duelView = chessView ?? checkersView
   const [sceneSfx, setSceneSfx] = useState<{ name: SfxName; n: number } | null>(null)
@@ -370,7 +377,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   const ghostStyles = useRef(new Map<string, CSSProperties>())
   const narrow = useMedia('(max-width: 700px) and (orientation: portrait)')
   const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
-  const tableMode = (!!view || !!golfView || !!duelView || !!tycoonView) && showTable
+  const tableMode = (!!view || !!golfView || !!duelView || !!tycoonView || !!shooterView) && showTable
   const hiTile = tableMode && hi && tiles.some((t) => t.id === hi) ? hi : null
   const layout: SceneLayout = hiTile ? 'faixa' : 'mesa'
   const hasView = !!game.view
@@ -428,6 +435,11 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     const t = tilesRef2.current[i]
     if (t) setHi((h) => (h === t.id ? null : t.id))
   }, [])
+  /** G no tiro: a tela em destaque vira o palco e o jogo vira miniatura (e volta) */
+  const onShooterSpotlight = useCallback(() => {
+    const hovered = document.querySelector<HTMLElement>('[data-tile-id]:hover')?.dataset.tileId
+    setHi((h) => (h ? null : (hovered ?? tilesRef2.current[0]?.id ?? null)))
+  }, [])
   const toggleMusic = (on: boolean) => {
     setMusicOn(on)
     setPrefs({ musicOn: on })
@@ -440,7 +452,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     if (!tableMode) return undefined
     if (hiTile) return { mode: id === hiTile ? 'hi' : 'parked' }
     if (narrow) return { mode: 'strip' }
-    if (golfView || duelView || tycoonView) {
+    if (golfView || duelView || tycoonView || shooterView) {
       const style = { right: CORNER_TV.edge, top: CORNER_TV.edge + idx * (CORNER_TV.h + CORNER_TV.gap), width: CORNER_TV.w, height: CORNER_TV.h }
       return { mode: 'rect', style }
     }
@@ -823,6 +835,35 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
                 </Suspense>
               </div>
             )}
+            {shooterView && (
+              <Suspense fallback={null}>
+                <ShooterStageLazy
+                  view={shooterView}
+                  manager={state.manager}
+                  relay={gameApi.relay}
+                  onRelay={gameApi.onRelay}
+                  act={gameApi.act}
+                  visible={tableMode}
+                  pip={!!hiTile}
+                  canManage={!!game.lobby?.canManage}
+                  reducedMotion={reducedMotion}
+                  sfxBus={shooterBus}
+                  onTrack={setShooterTrack}
+                  onPlayAgain={() => {
+                    const options = game.lobby?.options
+                    gameApi.close()
+                    gameApi.open('shooter', options)
+                  }}
+                  onClose={gameApi.close}
+                  onBackToScreens={() => setShowTable(false)}
+                  onSpotlight={onShooterSpotlight}
+                  musicOn={musicOn}
+                  musicVolume={musicVolume}
+                  onMusicOn={toggleMusic}
+                  onMusicVolume={changeMusicVolume}
+                />
+              </Suspense>
+            )}
             {tableMode && chessView && (
               <div className="scene-host chess-host">
                 <Suspense
@@ -1202,6 +1243,8 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
           musicOn={musicOn}
           musicVolume={musicVolume}
           inviteSeq={inviteSeq}
+          sfxBus={shooterView ? shooterBus : null}
+          track={shooterView ? shooterTrack : null}
           mics={[
             { id: 'me', stream: state.micStream, muted: micMuted },
             ...state.peers.map((p) => ({ id: p.id, stream: p.mic, muted: p.state.micMuted }))

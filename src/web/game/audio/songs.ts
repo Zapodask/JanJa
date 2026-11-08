@@ -5,6 +5,8 @@
  *  calma   Dó maior, 92 BPM, swing leve, 32 compassos (A, A', ponte, A'' esparso)
  *  tensao  Lá menor, 120 BPM, 16 compassos (dominante E7 com sol sustenido)
  *  vitoria Dó maior, 128 BPM, 16 compassos, toca 1 vez e volta para a calma
+ *  tiroteio Ré menor harmônico, 150 BPM, 16 compassos (Tiro na Sala: partida rolando)
+ *  final    Mi menor harmônico, 176 BPM, 16 compassos (Tiro na Sala: último minuto)
  */
 import type { MusicTrack } from '../contract'
 import { noteToMidi } from './notes'
@@ -79,6 +81,11 @@ const CH = {
   Am7: chord('Am7', 'A2', 'm7', ['A3', 'C4', 'E4', 'G4']),
   G7: chord('G7', 'G2', 'd7', ['B3', 'D4', 'F4', 'G4']),
   E7: chord('E7', 'E2', 'd7', ['G#3', 'B3', 'D4', 'E4']),
+  // tiroteio (Ré menor) e final (Mi menor)
+  BbM7: chord('BbM7', 'A#2', 'M7', ['D4', 'F4', 'A4', 'D5']),
+  C7: chord('C7', 'C3', 'd7', ['E4', 'G4', 'A#4', 'C5']),
+  A7: chord('A7', 'A2', 'd7', ['C#4', 'E4', 'G4', 'A4']),
+  B7: chord('B7', 'B2', 'd7', ['D#4', 'F#4', 'A4', 'B4']),
   // vitória: tríades, baixo uma oitava acima
   C: chord('C', 'C3', 'maj', ['E4', 'G4', 'C5', 'E5']),
   G: chord('G', 'G2', 'maj', ['D4', 'G4', 'B4', 'D5']),
@@ -421,7 +428,103 @@ const vitoria = build(
   ]
 )
 
-export const TRACKS: Record<MusicTrack, TrackDef> = { calma, tensao, vitoria }
+// ----- tiroteio: Ré menor harmônico, 150 BPM. Dm7-BbM7-C7-A7 (dois compassos por acorde) -----
+const PCS_D_MINOR_HARM = [2, 4, 5, 7, 9, 10, 1, 0] // ré menor + dó sustenido (A7) e dó natural (C7)
+const tiroteio = build(
+  { id: 'tiroteio', bpm: 150, swing: 0, scale: PCS_D_MINOR_HARM, duty: { lead: 0.25, arp: 0.125 }, cutoff: 7000, gain: 1 },
+  [
+    {
+      chords: ['Dm7', 'Dm7', 'BbM7', 'BbM7', 'C7', 'C7', 'A7', 'A7'],
+      lead: [
+        'D5/2 -/2 D5/2 F5/2 A5/4 F5/2 D5/2',
+        'F5/2 E5/2 D5/4 F5/4 A5/4',
+        'A#4/2 D5/2 F5/4 A5/4 F5/2 D5/2',
+        'D5/4 F5/2 A5/2 F5/4 D5/2 -/2',
+        'G5/2 -/2 E5/2 G5/2 C6/4 G5/2 E5/2',
+        'E5/2 G5/2 A#5/4 G5/2 E5/2 C5/4',
+        'A5/2 -/2 E5/2 G5/2 C#6/4 A5/2 E5/2',
+        'G5/2 E5/2 C#5/4 E5/2 G5/2 A5/4'
+      ],
+      leadVel: 0.78,
+      arp: ARP_STAB_SPARSE,
+      arpLen: 1,
+      arpVel: 0.32,
+      bass: BASS_DRIVE,
+      drums: D_TENSE,
+      fill: D_TENSE_FILL
+    },
+    {
+      chords: ['Dm7', 'Dm7', 'BbM7', 'BbM7', 'C7', 'C7', 'A7', 'A7'],
+      lead: [
+        'A5/2 F5/2 D5/2 F5/2 A5/2 C6/2 D6/4',
+        'C6/4 A5/2 F5/2 D5/4 F5/2 A5/2',
+        'D6/4 A5/2 F5/2 D5/4 F5/4',
+        'A#5/2 A5/2 F5/4 D5/4 -/4',
+        'G5/2 C6/2 E6/4 C6/2 G5/2 E5/4',
+        'A#5/4 G5/2 E5/2 G5/4 A#5/4',
+        'E6/2 C#6/2 A5/4 G5/2 E5/2 C#5/4',
+        'A5/4 -/2 E5/2 G5/4 A5/4'
+      ],
+      leadVel: 0.74,
+      arp: ARP_STAB,
+      arpLen: 1,
+      arpVel: 0.28,
+      bass: BASS_SYNC,
+      drums: D_TENSE_HARD,
+      fill: D_TENSE_FILL
+    }
+  ]
+)
+
+// ----- final: Mi menor harmônico, 176 BPM. Em7-CM7-Am7-B7, arpejo em semicolcheias, para o último minuto -----
+const PCS_E_MINOR_HARM = [4, 6, 7, 9, 11, 0, 3, 2] // mi menor + ré sustenido (B7) e ré natural (Em7)
+const final = build(
+  { id: 'final', bpm: 176, swing: 0, scale: PCS_E_MINOR_HARM, duty: { lead: 0.25, arp: 0.125 }, cutoff: 7600, gain: 1 },
+  [
+    {
+      chords: ['Em7', 'Em7', 'CM7', 'CM7', 'Am7', 'Am7', 'B7', 'B7'],
+      lead: [
+        'E5/2 B5/2 G5/2 B5/2 E5/2 B5/2 G5/2 B5/2',
+        'E6/2 D6/2 B5/2 G5/2 B5/4 D6/4',
+        'C6/2 G5/2 E5/2 G5/2 C6/2 G5/2 E5/2 G5/2',
+        'B5/2 C6/2 E6/4 G5/2 E5/2 C5/4',
+        'A5/2 E5/2 C5/2 E5/2 A5/2 E5/2 C5/2 E5/2',
+        'A5/4 C6/2 E6/2 C6/4 A5/2 G5/2',
+        'B5/2 F#5/2 D#5/2 F#5/2 B5/2 F#5/2 D#5/2 F#5/2',
+        'D#6/4 B5/2 A5/2 F#5/4 D#5/2 B4/2'
+      ],
+      leadVel: 0.74,
+      arp: ARP_SIXTEENTH,
+      arpLen: 1,
+      arpVel: 0.2,
+      bass: BASS_BOUNCE,
+      drums: D_TENSE_HARD,
+      fill: D_TENSE_FILL
+    },
+    {
+      chords: ['Em7', 'Em7', 'CM7', 'CM7', 'Am7', 'Am7', 'B7', 'B7'],
+      lead: [
+        'B5/2 G5/2 E5/2 G5/2 B5/2 E6/2 D6/2 B5/2',
+        'E6/4 D6/2 B5/2 G5/4 B5/2 D6/2',
+        'E6/2 C6/2 G5/2 C6/2 E6/2 C6/2 G5/2 B5/2',
+        'E6/4 C6/2 B5/2 G5/4 E5/4',
+        'C6/2 E6/2 A5/2 E6/2 C6/2 E6/2 A5/2 E5/2',
+        'A5/4 G5/2 E5/2 C5/4 E5/4',
+        'D#6/2 B5/2 F#5/2 B5/2 D#6/2 B5/2 F#5/2 A5/2',
+        'B5/4 A5/2 F#5/2 D#5/4 -/4'
+      ],
+      leadVel: 0.72,
+      arp: ARP_SIXTEENTH,
+      arpLen: 1,
+      arpVel: 0.22,
+      bass: BASS_DRIVE,
+      drums: D_TENSE_HARD,
+      fill: D_TENSE_FILL
+    }
+  ]
+)
+
+export const TRACKS: Record<MusicTrack, TrackDef> = { calma, tensao, vitoria, tiroteio, final }
 
 // ---------------- derivados ----------------
 

@@ -3,7 +3,7 @@ import type { SeqHost } from './sequencer'
 import { duckGain, duckTimeConstant, midiToHz, pulseCoefficients, volumeToGain } from './notes'
 import { sfxPlan, type SfxVoice } from './sfx'
 import { stepSeconds, type StepNote, type TrackDef } from './songs'
-import type { SfxName } from '../contract'
+import type { SfxName, SfxOpts } from '../contract'
 
 interface Bus {
   gain: GainNode
@@ -186,10 +186,30 @@ export class Engine implements SeqHost {
   }
 
   // ---- efeitos ----
-  sfx(name: SfxName, count?: number): void {
+  sfx(name: SfxName, count?: number, opts?: Pick<SfxOpts, 'volume' | 'pan'>): void {
     const t0 = this.ctx.currentTime + 0.01
-    for (const v of sfxPlan(name, count)) {
-      this.voice(this.sfxBus, { kind: v.kind, when: t0 + v.t, dur: v.dur, freq: v.freq, freqEnd: v.freqEnd, vel: v.vel, duty: v.duty, filter: v.filter, attack: v.attack ?? 0.003, sustain: 0.05, release: 0.03 })
+    const plan = sfxPlan(name, count)
+    // volume e pan por chamada (o tiro usa a distância): um ganho + panorâmica só para este efeito
+    let dest: AudioNode = this.sfxBus
+    const vol = opts?.volume ?? 1
+    const pan = opts?.pan ?? 0
+    if ((vol !== 1 || pan !== 0) && typeof this.ctx.createStereoPanner === 'function') {
+      const g = this.ctx.createGain()
+      g.gain.value = Math.max(0, Math.min(1.5, vol))
+      const p = this.ctx.createStereoPanner()
+      p.pan.value = Math.max(-1, Math.min(1, pan))
+      g.connect(p).connect(this.sfxBus)
+      dest = g
+      const end = Math.max(...plan.map((v) => v.t + v.dur)) + 0.4
+      const id = setTimeout(() => {
+        this.timers.delete(id)
+        g.disconnect()
+        p.disconnect()
+      }, end * 1000)
+      this.timers.add(id)
+    }
+    for (const v of plan) {
+      this.voice(dest, { kind: v.kind, when: t0 + v.t, dur: v.dur, freq: v.freq, freqEnd: v.freqEnd, vel: v.vel, duty: v.duty, filter: v.filter, attack: v.attack ?? 0.003, sustain: 0.05, release: 0.03 })
     }
   }
 

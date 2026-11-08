@@ -61,6 +61,11 @@ export interface GameDefinition<State, Options, Action, View, Event> {
   nextDeadline(state: State): number | null
   /** jogador caiu/voltou: o jogo decide (ex.: fica "ausente" e é pulado nas próximas mãos) */
   setPresence(state: State, playerId: string, present: boolean, ctx: GameCtx): Step<State, Event>
+  /**
+   * Opcional: aceita alguém que senta com a partida em andamento (entrar no meio, ex.: tiro).
+   * Sem isto, `game-sit` depois do início é recusado com `ja-comecou`.
+   */
+  addPlayer?(state: State, player: PlayerRef, ctx: GameCtx): Step<State, Event> | GameError
   /** visão personalizada. null = espectador. NUNCA pode conter informação escondida de outro jogador. */
   view(state: State, playerId: string | null, now: number): View
   isOver(state: State): boolean

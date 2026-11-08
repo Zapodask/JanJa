@@ -9,7 +9,8 @@
  *
  * Laboratórios: /dev/audio, /dev/poker (SceneLab), /dev/golf (GolfLab, o motor do golfe rodando local)
  * /dev/chess (ChessLab) e /dev/checkers (CheckersLab): xadrez e damas locais, com um bot de lances aleatórios;
- * /dev/tycoon (TycoonLab): o Magnata com até 5 bots.
+ * /dev/tycoon (TycoonLab): o Magnata com até 5 bots;
+ * /dev/shooter (ShooterLab): o Tiro na Sala com robôs, sem rede (`?map=quintal&bots=3`, `window.__tiro`).
  */
 import type { ComponentType } from 'react'
 
@@ -24,5 +25,6 @@ export const DEV_ROUTES: DevRoute[] = [
   { path: '/dev/golf', load: () => import('./GolfLab').then((m) => ({ default: m.GolfLab })) },
   { path: '/dev/chess', load: () => import('./ChessLab').then((m) => ({ default: m.ChessLab })) },
   { path: '/dev/checkers', load: () => import('./CheckersLab').then((m) => ({ default: m.CheckersLab })) },
-  { path: '/dev/tycoon', load: () => import('./TycoonLab').then((m) => ({ default: m.TycoonLab })) }
+  { path: '/dev/tycoon', load: () => import('./TycoonLab').then((m) => ({ default: m.TycoonLab })) },
+  { path: '/dev/shooter', load: () => import('./ShooterLab').then((m) => ({ default: m.ShooterLab })) }
 ]

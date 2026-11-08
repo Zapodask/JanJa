@@ -39,6 +39,10 @@ export interface PeerView {
   diag: PeerDiag
 }
 
+/** canal negociado "game" (id 8): pacotes binários do Tiro na Sala, sem ordem e sem retransmissão */
+export const GAME_CHANNEL_ID = 8
+export const GAME_CHANNEL_LABEL = 'game'
+
 interface Peer {
   id: string
   name: string
@@ -47,6 +51,8 @@ interface Peer {
   pc: RTCPeerConnection
   /** canal negociado "control" (id 7), igual nos dois lados */
   control: RTCDataChannel
+  /** canal negociado "game" (id 8) */
+  game: RTCDataChannel
   polite: boolean
   makingOffer: boolean
   ignoreOffer: boolean
@@ -110,6 +116,8 @@ export class PeerManager {
   private readonly listeners = new Set<() => void>()
   private readonly controlListeners = new Set<(peerId: string, msg: ControlMsg) => void>()
   private readonly controlLostListeners = new Set<(peerId: string) => void>()
+  private readonly gameListeners = new Set<(peerId: string, data: ArrayBuffer) => void>()
+  private readonly gameStateListeners = new Set<(peerId: string, open: boolean) => void>()
   private micStream?: MediaStream
   private screenStream?: MediaStream
   private camStream?: MediaStream
@@ -176,9 +184,17 @@ export class PeerManager {
     if (this.peers.has(info.peerId)) return
     const pc = new RTCPeerConnection({ iceServers: this.iceServers })
     const control = pc.createDataChannel(CONTROL_CHANNEL_LABEL, { negotiated: true, id: CONTROL_CHANNEL_ID, ordered: true })
+    const game = pc.createDataChannel(GAME_CHANNEL_LABEL, {
+      negotiated: true,
+      id: GAME_CHANNEL_ID,
+      ordered: false,
+      maxRetransmits: 0
+    })
+    game.binaryType = 'arraybuffer'
     const peer: Peer = {
       id: info.peerId,
       control,
+      game,
       name: info.name,
       isHost: info.isHost,
       state: info.state,
@@ -203,6 +219,12 @@ export class PeerManager {
       if (msg) for (const cb of this.controlListeners) cb(peer.id, msg)
     }
     control.onclose = () => this.emitControlLost(peer.id)
+
+    game.onmessage = (ev) => {
+      if (ev.data instanceof ArrayBuffer) for (const cb of this.gameListeners) cb(peer.id, ev.data)
+    }
+    game.onopen = () => this.emitGameState(peer.id, true)
+    game.onclose = () => this.emitGameState(peer.id, false)
 
     pc.onnegotiationneeded = async () => {
       // o canal "control" também dispara este evento; quem já estava na sala espera a primeira oferta
@@ -229,7 +251,10 @@ export class PeerManager {
 
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed') peer.route = 'falhou'
-      if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) this.emitControlLost(peer.id)
+      if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
+        this.emitControlLost(peer.id)
+        this.emitGameState(peer.id, false)
+      }
       if (pc.connectionState === 'connected') void this.pollStats()
       this.emit()
     }
@@ -266,6 +291,7 @@ export class PeerManager {
     if (!peer) return
     this.peers.delete(id)
     this.emitControlLost(id)
+    this.emitGameState(id, false)
     peer.pc.close()
     this.emit()
     this.reapplyAllBitrates()
@@ -295,6 +321,45 @@ export class PeerManager {
 
   private emitControlLost(peerId: string): void {
     for (const cb of this.controlLostListeners) cb(peerId)
+  }
+
+  // ---------------- canal de jogo ----------------
+
+  /** Envia um pacote no canal "game" do peer. Só vai se o canal estiver aberto; devolve se enviou. */
+  sendGame(peerId: string, data: ArrayBuffer): boolean {
+    const ch = this.peers.get(peerId)?.game
+    if (!ch || ch.readyState !== 'open') return false
+    try {
+      ch.send(data)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /** peers com o canal "game" aberto agora */
+  openGamePeers(): string[] {
+    return [...this.peers.values()].filter((p) => p.game.readyState === 'open').map((p) => p.id)
+  }
+
+  gameOpen(peerId: string): boolean {
+    return this.peers.get(peerId)?.game.readyState === 'open'
+  }
+
+  /** Pacotes que chegam no canal "game". */
+  onGame(cb: (peerId: string, data: ArrayBuffer) => void): () => void {
+    this.gameListeners.add(cb)
+    return () => this.gameListeners.delete(cb)
+  }
+
+  /** O canal "game" abriu ou fechou (também ao sair o peer ou cair a conexão). */
+  onGameState(cb: (peerId: string, open: boolean) => void): () => void {
+    this.gameStateListeners.add(cb)
+    return () => this.gameStateListeners.delete(cb)
+  }
+
+  private emitGameState(peerId: string, open: boolean): void {
+    for (const cb of this.gameStateListeners) cb(peerId, open)
   }
 
   setRemoteState(id: string, state: PeerState): void {
@@ -425,12 +490,17 @@ export class PeerManager {
     this.stopScreen()
     // a câmera é do useRoom (sobrevive a reconexões): só sai dos peers
     this.stopCamera(false)
-    for (const id of this.peers.keys()) this.emitControlLost(id)
+    for (const id of this.peers.keys()) {
+      this.emitControlLost(id)
+      this.emitGameState(id, false)
+    }
     for (const peer of this.peers.values()) peer.pc.close()
     this.peers.clear()
     this.listeners.clear()
     this.controlListeners.clear()
     this.controlLostListeners.clear()
+    this.gameListeners.clear()
+    this.gameStateListeners.clear()
   }
 
   // ---------------- internos ----------------

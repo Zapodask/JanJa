@@ -200,6 +200,8 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
   const gameRef = useRef(game)
   gameRef.current = game
   const gameErrors = useRef(0)
+  /** assinantes do repasse do servidor (Tiro na Sala) */
+  const relayListeners = useRef(new Set<(from: string, data: string) => void>())
   const [roomNotice, setRoomNotice] = useState<{ message: string; n: number } | null>(null)
   const roomNotices = useRef(0)
 
@@ -384,6 +386,9 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
             case 'game-events':
               if (isGameMsg(msg)) dispatchGame(msg)
               break
+            case 'game-relay':
+              for (const cb of relayListeners.current) cb(msg.from, msg.data)
+              break
             case 'game-error':
               setGameError({ code: msg.code, message: msg.message, n: ++gameErrors.current })
               break
@@ -543,7 +548,13 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
       stand: () => send({ type: 'game-stand' }),
       start: () => send({ type: 'game-start' }),
       close: () => send({ type: 'game-close' }),
-      act: (action: unknown) => send({ type: 'game-action', seq: gameRef.current.viewSeq, action })
+      act: (action: unknown) => send({ type: 'game-action', seq: gameRef.current.viewSeq, action }),
+      /** repasse pelo servidor (sem P2P): `to` = playerId ou '*'; `data` em base64 */
+      relay: (to: string, data: string) => send({ type: 'game-relay', to, data }),
+      onRelay: (cb: (from: string, data: string) => void): (() => void) => {
+        relayListeners.current.add(cb)
+        return () => relayListeners.current.delete(cb)
+      }
     }),
     [send]
   )

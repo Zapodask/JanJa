@@ -52,6 +52,7 @@ chore(release): helper 0.1.3
 | `xadrez` | xadrez: regras, relógio, tabuleiro, HUD |
 | `damas` | damas: regras, tabuleiro, HUD |
 | `magnata` | Magnata: regras, tabuleiro, cartas, HUD |
+| `tiro` | Tiro na Sala: simulação, rede, mapas, cena, HUD |
 | `tour` | tour guiado |
 | `jan` | o mascote Jan |
 | `ui` | visual geral, tela inicial, componentes |

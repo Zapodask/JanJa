@@ -7,12 +7,17 @@ import { z } from 'zod'
  * tipa do lado do cliente (ex.: PokerView/PokerEvent).
  */
 
-export const GAME_IDS = ['poker', 'golf', 'chess', 'checkers', 'tycoon'] as const
+export const GAME_IDS = ['poker', 'golf', 'chess', 'checkers', 'tycoon', 'shooter'] as const
 export const GameIdSchema = z.enum(GAME_IDS)
 export type GameId = z.infer<typeof GameIdSchema>
 
 /** clientId: identidade estável da pessoa nesta sala (guardada no navegador). Recupera a cadeira ao reconectar. */
 export const ClientIdSchema = z.string().regex(/^[A-Za-z0-9_-]{8,64}$/)
+
+/** maior pacote repassado (base64) */
+export const RELAY_MAX_DATA = 6000
+/** pacotes de repasse por segundo, por conexão; o excesso é descartado em silêncio */
+export const RELAY_MAX_PER_SEC = 60
 
 // ---------- cliente -> servidor ----------
 export const GameClientMessageSchemas = [
@@ -21,7 +26,13 @@ export const GameClientMessageSchemas = [
   z.object({ type: z.literal('game-stand') }),
   z.object({ type: z.literal('game-start') }),
   z.object({ type: z.literal('game-action'), seq: z.number().int().min(0), action: z.unknown() }),
-  z.object({ type: z.literal('game-close') })
+  z.object({ type: z.literal('game-close') }),
+  /**
+   * Repasse de pacotes de jogo em tempo real (tiro) quando não há canal P2P com o host.
+   * `to` = playerId de destino ou '*' (todos os sentados). `data` = pacote binário em base64.
+   * O servidor só repassa (não guarda nem lê) e descarta o excesso acima de RELAY_MAX_PER_SEC.
+   */
+  z.object({ type: z.literal('game-relay'), to: z.string().min(1).max(64), data: z.string().max(RELAY_MAX_DATA) })
 ] as const
 
 // ---------- servidor -> cliente ----------
@@ -70,5 +81,7 @@ export const GameServerMessageSchemas = [
   z.object({ type: z.literal('game-view'), seq: z.number().int(), view: z.unknown() }),
   /** eventos para animação/som, na ordem em que aconteceram */
   z.object({ type: z.literal('game-events'), seq: z.number().int(), events: z.array(z.unknown()) }),
-  z.object({ type: z.literal('game-error'), code: GameErrorCodeSchema, message: z.string() })
+  z.object({ type: z.literal('game-error'), code: GameErrorCodeSchema, message: z.string() }),
+  /** pacote repassado; `from` = playerId de quem mandou (o servidor preenche, nunca confia no cliente) */
+  z.object({ type: z.literal('game-relay'), from: z.string(), data: z.string() })
 ] as const
