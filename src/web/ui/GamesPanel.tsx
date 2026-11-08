@@ -39,10 +39,11 @@ const GAMES: DropdownOption[] = [
   { value: 'truco', label: 'Truco', sub: 'Truco gaudério: 1x1, 2x2 ou 3x3', icon: 'sword' },
   { value: 'shooter', label: 'Tiro na Sala', sub: 'Tiroteio pixel na casa, todo mundo contra todo mundo', icon: 'target' },
   { value: 'naval', label: 'Batalha naval', sub: 'Duas pessoas, cada uma com a sua frota', icon: 'anchor' },
-  { value: 'mystery', label: 'Mistério', sub: 'Descubra quem roubou o quadro, de 2 a 6', icon: 'search' }
+  { value: 'mystery', label: 'Mistério', sub: 'Descubra quem roubou o quadro, de 2 a 6', icon: 'search' },
+  { value: 'pool', label: 'Sinuca', sub: 'Bola 8, uma pessoa contra a outra', icon: 'eight' }
 ]
 
-const GAME_ICON: Record<GameId, 'cards' | 'flag' | 'pawn' | 'checker' | 'dice' | 'sword' | 'target' | 'anchor' | 'search'> = {
+const GAME_ICON: Record<GameId, 'cards' | 'flag' | 'pawn' | 'checker' | 'dice' | 'sword' | 'target' | 'anchor' | 'search' | 'eight'> = {
   poker: 'cards',
   golf: 'flag',
   chess: 'pawn',
@@ -51,7 +52,8 @@ const GAME_ICON: Record<GameId, 'cards' | 'flag' | 'pawn' | 'checker' | 'dice' |
   truco: 'sword',
   shooter: 'target',
   naval: 'anchor',
-  mystery: 'search'
+  mystery: 'search',
+  pool: 'eight'
 }
 
 const NAVAL_MODES: DropdownOption[] = [
@@ -144,7 +146,7 @@ function chessLabel(o: ChessOptions): string {
   return o.minutes === 0 ? 'sem relógio' : `${o.minutes} minutos para cada um`
 }
 
-const TITLES: Record<GameId, string> = { poker: 'Mesa de Poker', golf: 'Golfe', chess: 'Xadrez', checkers: 'Damas', tycoon: 'Magnata', truco: 'Truco', shooter: 'Tiro na Sala', naval: 'Batalha naval', mystery: 'Mistério' }
+const TITLES: Record<GameId, string> = { poker: 'Mesa de Poker', golf: 'Golfe', chess: 'Xadrez', checkers: 'Damas', tycoon: 'Magnata', truco: 'Truco', shooter: 'Tiro na Sala', naval: 'Batalha naval', mystery: 'Mistério', pool: 'Sinuca' }
 export const gameTitle = (id: GameId): string => TITLES[id]
 
 function lobbyLabel(lobby: GameLobby): string {
@@ -152,6 +154,7 @@ function lobbyLabel(lobby: GameLobby): string {
   if (lobby.gameId === 'shooter') return shooterLabel(lobby.options as ShooterOptions)
   if (lobby.gameId === 'chess') return chessLabel(lobby.options as ChessOptions)
   if (lobby.gameId === 'checkers') return chessLabel(lobby.options as CheckersOptions)
+  if (lobby.gameId === 'pool') return 'bola 8, lisas contra listradas'
   if (lobby.gameId === 'mystery') return 'o roubo do quadro no Casarão da Vila'
   if (lobby.gameId === 'naval') return (lobby.options as NavalOptions).mode === 'salva' ? 'modo salva' : 'modo clássico'
   if (lobby.gameId === 'truco') {
@@ -212,7 +215,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                   ariaLabel="Jogo"
                   value={pick}
                   options={GAMES}
-                  onChange={(v) => setPick(v === 'golf' || v === 'chess' || v === 'checkers' || v === 'tycoon' || v === 'truco' || v === 'shooter' || v === 'naval' || v === 'mystery' ? v : 'poker')}
+                  onChange={(v) => setPick(v === 'golf' || v === 'chess' || v === 'checkers' || v === 'tycoon' || v === 'truco' || v === 'shooter' || v === 'naval' || v === 'mystery' || v === 'pool' ? v : 'poker')}
                 />
               </div>
             </div>
@@ -305,6 +308,11 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                   </div>
                 </div>
               </>
+            ) : pick === 'pool' ? (
+              <p className="muted games-lead">
+                Sinuca de bola 8 para duas pessoas: lisas contra listradas. Encaçapou do seu grupo, joga de novo. Limpou o grupo, escolha
+                a caçapa e mate a 8. Falta dá bola na mão para o outro.
+              </p>
             ) : pick === 'mystery' ? (
               <p className="muted games-lead">
                 Roubaram o quadro do Casarão da Vila durante a festa. Palpite quem foi, onde e com o quê: quem tiver uma das cartas
@@ -438,7 +446,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
             )}
             <div className="modal-actions">
               <button onClick={onClose}>Agora não</button>
-              <button className="primary" onClick={() => api.open(pick, pick === 'golf' ? golf : pick === 'chess' ? chess : pick === 'checkers' ? checkers : pick === 'tycoon' ? tycoon : pick === 'truco' ? truco : pick === 'shooter' ? shooter : pick === 'naval' ? naval : pick === 'mystery' ? {} : poker)}>
+              <button className="primary" onClick={() => api.open(pick, pick === 'golf' ? golf : pick === 'chess' ? chess : pick === 'checkers' ? checkers : pick === 'tycoon' ? tycoon : pick === 'truco' ? truco : pick === 'shooter' ? shooter : pick === 'naval' ? naval : pick === 'mystery' || pick === 'pool' ? {} : poker)}>
                 {pick === 'poker' ? 'Abrir mesa' : 'Abrir partida'}
               </button>
             </div>

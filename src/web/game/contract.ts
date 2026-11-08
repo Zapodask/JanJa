@@ -12,6 +12,7 @@ import type { PokerEvent, PokerView } from '../../shared/games/poker/types'
 import type { Cell, Placement } from '../../shared/games/naval/fleet'
 import type { NavalView } from '../../shared/games/naval/types'
 import type { MysteryAction, MysteryView } from '../../shared/games/mystery/types'
+import type { PoolView } from '../../shared/games/pool/types'
 import type { TrucoView } from '../../shared/games/truco/types'
 import type { TycoonView } from '../../shared/games/tycoon/types'
 
@@ -30,7 +31,7 @@ export interface RawEventBatch {
 
 export interface GameClientState {
   lobby: GameLobby | null
-  /** visão do jogo aberto: PokerView, GolfView, ChessView, CheckersView, TycoonView, TrucoView, NavalView ou MysteryView, conforme `lobby.gameId` */
+  /** visão do jogo aberto: PokerView, GolfView, ChessView, CheckersView, TycoonView, TrucoView, NavalView, MysteryView ou PoolView, conforme `lobby.gameId` */
   view: unknown
   /** último lote de eventos recebido (a CENA anima a partir dele; o seq evita animar duas vezes) */
   lastEvents: RawEventBatch | null
@@ -137,6 +138,24 @@ export interface MysterySceneProps {
   view: MysteryView
   reducedMotion: boolean
   onAct: (action: MysteryAction) => void
+}
+
+/** tacada da sinuca, sem o `ref` (a SALA completa) */
+export interface PoolShot {
+  dx: number
+  dy: number
+  power: number
+  cue?: { x: number; y: number }
+  pocket?: number
+}
+
+/** Mesa da sinuca (canvas 2D em pixel art). A cena anima a tacada a partir do "antes". */
+export interface PoolSceneProps {
+  view: PoolView
+  reducedMotion: boolean
+  onShoot: (shot: PoolShot) => void
+  /** som da simulação local (bola caindo na caçapa) */
+  onSfx?: (name: SfxName) => void
 }
 
 // ---------------- ÁUDIO ----------------

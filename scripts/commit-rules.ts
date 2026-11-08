@@ -41,6 +41,7 @@ export const SCOPES = {
   truco: 'truco gaudério: regras, mesa, HUD',
   naval: 'batalha naval: frota, tiros, mares, HUD',
   misterio: 'Mistério: cartas, palpites, caderno, HUD',
+  sinuca: 'sinuca: física, regras da bola 8, mesa, HUD',
   tour: 'tour guiado',
   jan: 'o mascote Jan',
   ui: 'visual geral, tela inicial, componentes',

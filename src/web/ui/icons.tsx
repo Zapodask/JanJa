@@ -213,6 +213,13 @@ const PATHS = {
       <path d="M15 15l5.5 5.5" />
     </>
   ),
+  eight: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="10" r="1.6" />
+      <circle cx="12" cy="14" r="2" />
+    </>
+  ),
   music: (
     <>
       <path d="M9 18V6l10-2v12" />

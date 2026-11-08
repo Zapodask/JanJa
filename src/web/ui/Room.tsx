@@ -18,14 +18,15 @@ import type { ShooterView } from '../../shared/games/shooter/types'
 import type { PokerView } from '../../shared/games/poker/types'
 import type { Cell, Placement } from '../../shared/games/naval/fleet'
 import type { MysteryAction, MysteryView } from '../../shared/games/mystery/types'
+import type { PoolAction, PoolView } from '../../shared/games/pool/types'
 import type { NavalAction, NavalView } from '../../shared/games/naval/types'
 import type { TrucoAction, TrucoIntent, TrucoView } from '../../shared/games/truco/types'
 import type { TycoonAction, TycoonView } from '../../shared/games/tycoon/types'
-import type { EventBatch, MusicTrack, Rect, SceneLayout, SfxName } from '../game/contract'
+import type { EventBatch, MusicTrack, PoolShot, Rect, SceneLayout, SfxName } from '../game/contract'
 import { GameAudioDriver } from '../game/GameAudioDriver'
 import { sameRects, shortcutAction, shouldInvite } from '../game/helpers'
 import { createSfxBus } from '../game/shooter/sfxBus'
-import { loadCheckersScene, loadChessScene, loadGolfScene, loadMysteryScene, loadNavalScene, loadScene, loadTrucoScene, loadTycoonScene } from '../game/loaders'
+import { loadCheckersScene, loadChessScene, loadGolfScene, loadMysteryScene, loadNavalScene, loadPoolScene, loadScene, loadTrucoScene, loadTycoonScene } from '../game/loaders'
 import { Avatar, toneOf } from './Avatar'
 import { GameInvite } from './GameInvite'
 import { GamesPanel } from './GamesPanel'
@@ -68,6 +69,9 @@ const NavalHudLazy = lazy(() => import('./NavalHud').then((m) => ({ default: m.N
 // e o Mistério
 const MysterySceneLazy = lazy(loadMysteryScene)
 const MysteryHudLazy = lazy(() => import('./MysteryHud').then((m) => ({ default: m.MysteryHud })))
+// e a sinuca
+const PoolSceneLazy = lazy(loadPoolScene)
+const PoolHudLazy = lazy(() => import('./PoolHud').then((m) => ({ default: m.PoolHud })))
 
 /** onde ficam as telas compartilhadas durante o golfe e os jogos de tabuleiro: miniaturas empilhadas no canto de cima */
 const CORNER_TV = { w: 208, h: 117, gap: 8, edge: 12 }
@@ -358,7 +362,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   }, [tiles])
   const shown = [...tiles, ...ghosts.filter((g) => !tiles.some((t) => t.id === g.id))]
 
-  // ---------- jogos (poker, golfe, xadrez, damas, Magnata, truco, batalha naval e Mistério) ----------
+  // ---------- jogos (poker, golfe, xadrez, damas, Magnata, truco, batalha naval, Mistério e sinuca) ----------
   const gameId = game.lobby?.gameId
   const view = gameId === 'poker' && game.view ? (game.view as PokerView) : null
   const golfView = gameId === 'golf' && game.view ? (game.view as GolfView) : null
@@ -368,6 +372,9 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   const trucoView = gameId === 'truco' && game.view ? (game.view as TrucoView) : null
   const navalView = gameId === 'naval' && game.view ? (game.view as NavalView) : null
   const mysteryView = gameId === 'mystery' && game.view ? (game.view as MysteryView) : null
+  const poolView = gameId === 'pool' && game.view ? (game.view as PoolView) : null
+  const poolRef = useRef(poolView)
+  poolRef.current = poolView
   const navalRef = useRef(navalView)
   navalRef.current = navalView
   const trucoRef = useRef(trucoView)
@@ -397,7 +404,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   const ghostStyles = useRef(new Map<string, CSSProperties>())
   const narrow = useMedia('(max-width: 700px) and (orientation: portrait)')
   const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
-  const tableMode = (!!view || !!golfView || !!duelView || !!tycoonView || !!trucoView || !!shooterView || !!navalView || !!mysteryView) && showTable
+  const tableMode = (!!view || !!golfView || !!duelView || !!tycoonView || !!trucoView || !!shooterView || !!navalView || !!mysteryView || !!poolView) && showTable
   const hiTile = tableMode && hi && tiles.some((t) => t.id === hi) ? hi : null
   const layout: SceneLayout = hiTile ? 'faixa' : 'mesa'
   const hasView = !!game.view
@@ -424,7 +431,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     if (gameError) toast(gameError.message, 'warn')
   }, [gameError, toast])
 
-  const colorSource = view?.seats ?? golfView?.players ?? (duelView ? [duelView.white, duelView.black] : undefined) ?? tycoonView?.players ?? trucoView?.players ?? navalView?.players ?? mysteryView?.players
+  const colorSource = view?.seats ?? golfView?.players ?? (duelView ? [duelView.white, duelView.black] : undefined) ?? tycoonView?.players ?? trucoView?.players ?? navalView?.players ?? mysteryView?.players ?? poolView?.players
   const colors = useMemo(() => Object.fromEntries((colorSource ?? []).map((x) => [x.playerId, toneOf(x.name)])), [colorSource])
   const onGolfShot = useCallback(
     (angle: number, power: number) => {
@@ -440,6 +447,14 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     [gameApi]
   )
   const onCheckersMove = useCallback((path: string[]) => gameApi.act({ type: 'move', path } satisfies CheckersAction), [gameApi])
+  /** tacada da sinuca: vai com o número de tacadas que a pessoa viu (`ref`) */
+  const onPoolShoot = useCallback(
+    (shot: PoolShot) => {
+      const v = poolRef.current
+      if (v) gameApi.act({ type: 'shoot', ...shot, ref: v.ref } satisfies PoolAction)
+    },
+    [gameApi]
+  )
   const onMysteryAct = useCallback((a: MysteryAction) => gameApi.act(a), [gameApi])
   const onNavalPlace = useCallback((ships: Placement[]) => gameApi.act({ type: 'place', ships } satisfies NavalAction), [gameApi])
   /** tiro da batalha naval: vai com o número de tiros que a pessoa viu (`ref`) */
@@ -492,7 +507,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     if (!tableMode) return undefined
     if (hiTile) return { mode: id === hiTile ? 'hi' : 'parked' }
     if (narrow) return { mode: 'strip' }
-    if (golfView || duelView || tycoonView || trucoView || shooterView || navalView || mysteryView) {
+    if (golfView || duelView || tycoonView || trucoView || shooterView || navalView || mysteryView || poolView) {
       const style = { right: CORNER_TV.edge, top: CORNER_TV.edge + idx * (CORNER_TV.h + CORNER_TV.gap), width: CORNER_TV.w, height: CORNER_TV.h }
       return { mode: 'rect', style }
     }
@@ -971,6 +986,19 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
                 </Suspense>
               </div>
             )}
+            {tableMode && poolView && (
+              <div className="scene-host chess-host">
+                <Suspense
+                  fallback={
+                    <div className="scene-loading">
+                      <TvOff noise />
+                    </div>
+                  }
+                >
+                  <PoolSceneLazy view={poolView} reducedMotion={reducedMotion} onShoot={onPoolShoot} onSfx={onGolfSfx} />
+                </Suspense>
+              </div>
+            )}
             {tableMode && mysteryView && (
               <div className="scene-host chess-host">
                 <Suspense
@@ -1192,6 +1220,24 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
                   const options = game.lobby?.options
                   gameApi.close()
                   gameApi.open('naval', options)
+                }}
+                onClose={gameApi.close}
+                onBackToScreens={() => setShowTable(false)}
+                musicOn={musicOn}
+                musicVolume={musicVolume}
+                onMusicOn={toggleMusic}
+                onMusicVolume={changeMusicVolume}
+              />
+            </Suspense>
+          )}
+          {tableMode && poolView && (
+            <Suspense fallback={null}>
+              <PoolHudLazy
+                view={poolView}
+                canManage={!!game.lobby?.canManage}
+                onPlayAgain={() => {
+                  gameApi.close()
+                  gameApi.open('pool', {})
                 }}
                 onClose={gameApi.close}
                 onBackToScreens={() => setShowTable(false)}
