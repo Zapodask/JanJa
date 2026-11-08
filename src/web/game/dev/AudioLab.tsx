@@ -9,7 +9,7 @@ import { createGameAudio, DEFAULT_MUSIC_VOLUME } from '../audio'
 import { TRACKS, scoreText, trackSeconds } from '../audio/songs'
 
 const SFX: SfxName[] = ['shuffle', 'deal', 'flip', 'chip', 'check', 'fold', 'turn', 'allin', 'win', 'rebuy', 'podium']
-const TRACK_LIST: MusicTrack[] = ['calma', 'tensao', 'vitoria']
+const TRACK_LIST: MusicTrack[] = ['calma', 'cisnes', 'tensao', 'vitoria']
 
 const box = { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', margin: '8px 0' } as const
 

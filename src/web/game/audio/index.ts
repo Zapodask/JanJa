@@ -1,5 +1,5 @@
 /**
- * Áudio do jogo: música chiptune original (3 faixas) e efeitos, 100% Web Audio.
+ * Áudio do jogo: música chiptune (faixas originais e o Lago dos Cisnes em 8 bits) e efeitos, 100% Web Audio.
  * Uso: const audio = createGameAudio(); (depois de um gesto) audio.startMusic('calma').
  */
 import { getContext } from '../../audio'
