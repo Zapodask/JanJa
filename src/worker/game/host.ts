@@ -78,7 +78,7 @@ export class GameHost {
   }
 
   private game(s: GameSnapshot): AnyGame {
-    return this.registry[s.gameId]
+    return this.registry[s.gameId] as AnyGame // session() só carrega jogos registrados
   }
 
   private ctx(): GameCtx {
@@ -305,7 +305,7 @@ export class GameHost {
     if (!s.started) return this.err(conn, 'acao-invalida', 'A partida ainda não começou.')
     const g = this.game(s)
     if (this.over(s)) return this.err(conn, 'partida-encerrada', 'A partida acabou.')
-    if (seq < s.seq) return this.err(conn, 'seq-antigo', 'Sua tela estava desatualizada. Tente de novo.')
+    if (seq < s.seq && !g.concurrent) return this.err(conn, 'seq-antigo', 'Sua tela estava desatualizada. Tente de novo.')
     if (seq > s.seq) return this.err(conn, 'acao-invalida', 'Sequência inválida.')
     const action = g.parseAction(raw)
     if (isGameError(action)) return this.err(conn, action.error, action.message)

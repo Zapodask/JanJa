@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import type { PokerAction, PokerOptions } from '../shared/games/poker/types'
+import type { GameId } from '../shared/games/protocol'
 import {
   DEFAULT_CHANNELS,
   INITIAL_STATE,
@@ -538,12 +538,12 @@ export function useRoom(roomId: string, name: string, hostKey?: string) {
   const send = useCallback((msg: ClientMessage) => signalingRef.current?.send(msg), [])
   const gameApi = useMemo(
     () => ({
-      open: (options: PokerOptions) => send({ type: 'game-open', gameId: 'poker', options }),
+      open: (gameId: GameId, options: unknown) => send({ type: 'game-open', gameId, options }),
       sit: (seat?: number) => send({ type: 'game-sit', seat }),
       stand: () => send({ type: 'game-stand' }),
       start: () => send({ type: 'game-start' }),
       close: () => send({ type: 'game-close' }),
-      act: (action: PokerAction) => send({ type: 'game-action', seq: gameRef.current.viewSeq, action })
+      act: (action: unknown) => send({ type: 'game-action', seq: gameRef.current.viewSeq, action })
     }),
     [send]
   )

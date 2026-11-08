@@ -4,7 +4,7 @@ Guia para quem (humano ou IA) for mexer no JanJa. Leia antes de mudar código.
 
 ## O que é
 
-Site para amigos compartilharem tela, voz e câmera e jogarem poker juntos, direto do navegador. React 19 + Vite + TypeScript estrito no front; Cloudflare Worker com um Durable Object por sala (`Room`, Hibernation API, SQLite) no back. A mídia vai P2P em mesh WebRTC; o servidor só faz sinalização e roda os jogos. Há também o **JanJa Helper** (`helper/`, Rust, Windows) para controle remoto.
+Site para amigos compartilharem tela, voz e câmera e jogarem poker e mini-golfe juntos, direto do navegador. React 19 + Vite + TypeScript estrito no front; Cloudflare Worker com um Durable Object por sala (`Room`, Hibernation API, SQLite) no back. A mídia vai P2P em mesh WebRTC; o servidor só faz sinalização e roda os jogos. Há também o **JanJa Helper** (`helper/`, Rust, Windows) para controle remoto.
 
 Produção: https://janja.spotlightre.workers.dev (deploy automático da Cloudflare a cada push na `main`).
 
@@ -12,7 +12,7 @@ Produção: https://janja.spotlightre.workers.dev (deploy automático da Cloudfl
 
 ```bash
 npm run dev               # build + wrangler dev em http://localhost:8787
-npx vite                  # só o front (rotas de laboratório /dev/poker e /dev/audio)
+npx vite                  # só o front (rotas de laboratório /dev/poker, /dev/golf e /dev/audio)
 npm run typecheck         # 3 tsconfigs: web, worker, testes
 npm test                  # vitest (ambiente node)
 npm run test:e2e          # Chrome de verdade contra o wrangler dev
@@ -34,6 +34,8 @@ Antes de entregar qualquer mudança: `npm run typecheck && npm test && npx vite 
 | `src/web/install.ts` | instalar o JanJa como app (PWA): guarda o `beforeinstallprompt`; manifesto em `public/manifest.webmanifest` |
 | `src/shared/control.ts` | protocolo do controle remoto (canal de dados id 7) |
 | `src/shared/games/` | plataforma de jogos (`types.ts`, `protocol.ts`, `registry.ts`) e o poker (`poker/engine.ts`, `evaluate.ts`, `describe.ts`) |
+| `src/shared/games/golf/` | mini-golfe: buraco em ASCII (`course.ts`), física determinística (`physics.ts`), motor simultâneo (`engine.ts`) e mapas (`maps/`) |
+| `src/web/game/golf/scene/` | cena 3D do golfe em Three.js (`engine.ts`) e geometria pura do buraco (`geometry.ts`); HUD em `src/web/ui/GolfHud.tsx` |
 | `src/worker/index.ts` | rotas e o Durable Object; **um único alarme** = o menor entre o prazo do jogo e o TTL da sala vazia |
 | `src/worker/core.ts` | regras da sala sem Cloudflare (testável); delega `game-*` para `game/host.ts` |
 | `src/web/rtc/PeerManager.ts` | mesh com perfect negotiation, codecs, bitrate, estatísticas, watchdog de ICE |
@@ -60,10 +62,11 @@ Antes de entregar qualquer mudança: `npm run typecheck && npm test && npx vite 
 - **CSP** em `public/_headers`: sem `eval`, sem worker de `blob:`, conexões só para `'self'`, `wss:` e `ws://127.0.0.1:47800` (helper). Por isso:
   - o Pixi importa `pixi.js/unsafe-eval` primeiro e usa `Assets.setPreferences({ preferWorkers: false })`;
   - qualquer lib nova precisa funcionar com essa CSP (teste no build servido pelo wrangler, não só no `vite`).
-- **Pixi só no chunk da mesa.** A cena e o áudio do jogo carregam por `import()` em `src/web/game/loaders.ts`. Não importe `pixi.js` nem `gsap` fora de `src/web/game/scene` e `audio`.
+- **Pixi só no chunk da mesa, Three só no do golfe.** As cenas e o áudio carregam por `import()` em `src/web/game/loaders.ts`. Não importe `pixi.js` nem `gsap` fora de `src/web/game/scene` e `audio`, nem `three` fora de `src/web/game/golf/scene`.
 - **Tela x câmera x mic no receptor** são separados pelo `PeerState`: `screenStreamId` e `camStreamId`. Publique o estado **antes** de adicionar a trilha (`publishState` e depois `manager.startX`), senão o vídeo chega sem classificação.
 - **Jogos são puros.** Motor recebe `GameCtx { now, rng }`; nunca use `Date.now()` ou `Math.random()` dentro de `src/shared/games`. Cada conexão recebe só a própria `view`: nunca coloque cartas de outra pessoa na visão fora do showdown.
-- **Canais e limite.** A sala tem canais (padrão: só "Geral", sem limite) que o host cria, edita e apaga; **cada canal tem o seu limite** (`Channel.limit`, `0`/ausente = sem limite, escolhido ao criar e editável pelo lápis; baixar não tira ninguém), gravados no `RoomConfig`. Canal cheio recusa `channel-join` (`channel-full`); quem chega cai no primeiro canal com vaga, e se todos estiverem cheios não entra (o host entra). A sala em si não tem limite visível: só o teto de segurança `MAX_PEERS = 100`. A mídia continua P2P **dentro do canal**: o `useRoom` só chama `manager.addPeer` para quem está no mesmo canal e refaz as conexões no `peer-moved`. Acima de `HEAVY_CHANNEL` (8) pessoas num canal a malha pesa e a interface avisa; mais que isso só com servidor de mídia (SFU). O host sempre entra, mesmo com a sala cheia. O poker é da sala inteira (aceita até 8).
+- **Golfe é simultâneo e determinístico.** O jogo tem `concurrent: true`: o `GameHost` aceita `seq` antigo e o motor recusa tacada repetida pelo `stroke`. A física (`physics.ts`) roda igual no Worker e no navegador: passo fixo de `STEP_MS`, e dentro do laço só `+ - * / sqrt` (nada de `Math.sin`, `Math.hypot`, `Math.random`). O estado guarda um retrato do mundo (`t0` + bolas) e o alarme acorda no próximo instante em que alguma bola muda de estado (`nextChange`). Mapa novo: arquivo em `src/shared/games/golf/maps/` (legenda no topo de `course.ts`), 6 a 12 buracos; o teste `tests/golf/maps.test.ts` confere que dá para chegar no buraco.
+- **Canais e limite.** A sala tem canais (padrão: só "Geral", sem limite) que o host cria, edita e apaga; **cada canal tem o seu limite** (`Channel.limit`, `0`/ausente = sem limite, escolhido ao criar e editável pelo lápis; baixar não tira ninguém), gravados no `RoomConfig`. Canal cheio recusa `channel-join` (`channel-full`); quem chega cai no primeiro canal com vaga, e se todos estiverem cheios não entra (o host entra). A sala em si não tem limite visível: só o teto de segurança `MAX_PEERS = 100`. A mídia continua P2P **dentro do canal**: o `useRoom` só chama `manager.addPeer` para quem está no mesmo canal e refaz as conexões no `peer-moved`. Acima de `HEAVY_CHANNEL` (8) pessoas num canal a malha pesa e a interface avisa; mais que isso só com servidor de mídia (SFU). O host sempre entra, mesmo com a sala cheia. Os jogos são da sala inteira (poker e golfe aceitam até 8).
 - **Nome da sala ("servidor").** Escolhido na Home ao criar (vazio = "Sala de <apelido>"), mostrado no topo da barra lateral (`ServerCard`) e no título da aba; só o dono troca (`room-rename`). Fica em `RoomConfig.name` e vai em `RoomSettings.name`; sala antiga sem nome usa `DEFAULT_ROOM_NAME`. "Outros servidores" lista as salas recentes pelo nome (`RecentRoom.name`).
 - **Chat do canal** passa pelo servidor (`chat-send` / `chat` / `chat-history`), só para quem está no canal. O Durable Object guarda as últimas `CHAT_HISTORY` (50) por canal em `chat:<canal>`; apagar o canal apaga o chat; limite de 8 mensagens a cada 10 s por pessoa (`chat-flood`).
 - Mudou a arte? Rode `npm run sprites` e versione `public/game/sprites.*`.
@@ -81,11 +84,12 @@ Antes de entregar qualquer mudança: `npm run typecheck && npm test && npx vite 
 - Unitários em `tests/` (vitest, ambiente node). Regras de mãos são comparadas com `pokersolver` (devDependency, só oráculo de teste).
 - Headless (puppeteer-core + `/usr/bin/google-chrome`): o canvas WebGL sai em branco em screenshot. Defina `localStorage['janja.debug.renderer'] = 'canvas'` para o Pixi usar Canvas2D.
 - Flags úteis: `--use-fake-ui-for-media-stream --use-fake-device-for-media-stream --autoplay-policy=no-user-gesture-required`; substitua `navigator.mediaDevices.getDisplayMedia` por `getUserMedia` para simular a tela.
-- `/dev/poker` (laboratório da mesa, com `window.__lab.newHand()`, `flop()`, `showdown()`...) e `/dev/audio` só existem com `npx vite` (modo dev); não entram no build.
+- `/dev/poker` (laboratório da mesa, com `window.__lab.newHand()`, `flop()`, `showdown()`...), `/dev/golf` (motor do golfe local com bots; `?map=montanha&hole=3&bots=0`, `window.__golf.hole(n)` e `.shoot(angulo, forca)`) e `/dev/audio` só existem com `npx vite` (modo dev); não entram no build.
+- Golfe no headless: use `--use-angle=swiftshader --enable-unsafe-swiftshader` para o WebGL desenhar. Em dev o canvas expõe a posição da sua bola em `data-ball` (para arrastar a tacada).
 
 ## Commits
 
-Padrão `tipo(escopo): descrição` em português, sem ponto final, título até 72 caracteres. Tipos: `feat fix test refactor style perf docs build ci chore revert`. Escopos: `sala tela camera audio controle helper jogos poker tour jan ui worker deps release`. Detalhes em `docs/COMMITS.md`. O hook `.githooks/commit-msg` e o workflow `commits` recusam mensagens fora do padrão. Escopo novo: atualize `scripts/commit-rules.ts` e a tabela do doc no mesmo commit.
+Padrão `tipo(escopo): descrição` em português, sem ponto final, título até 72 caracteres. Tipos: `feat fix test refactor style perf docs build ci chore revert`. Escopos: `sala tela camera audio controle helper jogos poker golfe tour jan ui worker deps release`. Detalhes em `docs/COMMITS.md`. O hook `.githooks/commit-msg` e o workflow `commits` recusam mensagens fora do padrão. Escopo novo: atualize `scripts/commit-rules.ts` e a tabela do doc no mesmo commit.
 
 ## Fluxo de trabalho
 

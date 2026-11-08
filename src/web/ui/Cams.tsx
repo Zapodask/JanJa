@@ -63,7 +63,7 @@ export function CamTile({ item, pinned, onPin }: { item: CamItem; pinned: boolea
 
 /**
  * Webcams da sala. `palco`: ocupam o palco (ninguém compartilha tela); `faixa`: linha acima das telas;
- * `flutuante`: no canto, por cima da mesa de poker.
+ * `flutuante`: no canto, por cima da mesa de poker ou do campo de golfe.
  */
 export function CamStrip({
   items,

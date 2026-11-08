@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
+import { MAPS } from '../../shared/games/golf/maps'
+import { DEFAULT_GOLF_OPTIONS, type GolfOptions, type HoleSeconds } from '../../shared/games/golf/types'
 import { DEFAULT_OPTIONS, type PokerOptions } from '../../shared/games/poker/types'
-import type { GameLobby } from '../../shared/games/protocol'
+import type { GameId, GameLobby } from '../../shared/games/protocol'
 import { Avatar } from './Avatar'
 import { Dropdown, type DropdownOption } from './Dropdown'
 import { Icon } from './icons'
 
 export interface GamesApi {
-  open: (options: PokerOptions) => void
+  open: (gameId: GameId, options: unknown) => void
   sit: (seat?: number) => void
   stand: () => void
   start: () => void
@@ -21,6 +23,11 @@ interface Props {
   onClose: () => void
   onShowTable: () => void
 }
+
+const GAMES: DropdownOption[] = [
+  { value: 'poker', label: 'Poker', sub: 'De 2 a 8 pessoas, uma de cada vez', icon: 'cards' },
+  { value: 'golf', label: 'Golfe', sub: 'Mini-golfe em 3D, todo mundo joga junto', icon: 'flag' }
+]
 
 const MODES: DropdownOption[] = [
   { value: 'holdem', label: "Hold'em", sub: 'Duas cartas na mão e cinco na mesa', icon: 'cards' },
@@ -37,14 +44,40 @@ const BUYS: DropdownOption[] = [
   { value: 'torneio', label: 'Torneio', sub: 'Quem zera sai da mesa', icon: 'crown' }
 ]
 
-function modeLabel(o: PokerOptions): string {
+const MAP_OPTIONS: DropdownOption[] = MAPS.map((m) => ({
+  value: m.id,
+  label: m.name,
+  sub: `${m.holes.length} buracos`,
+  icon: 'flag'
+}))
+const COLLISIONS: DropdownOption[] = [
+  { value: 'sim', label: 'Bolas batem', sub: 'Dá para empurrar a bola dos outros', icon: 'users' },
+  { value: 'nao', label: 'Bolas passam', sub: 'Cada um joga sem atrapalhar', icon: 'focus' }
+]
+const HOLE_TIME: DropdownOption[] = [
+  { value: '60', label: '1 minuto', icon: 'clock' },
+  { value: '90', label: '1 minuto e meio', sub: 'Padrão', icon: 'clock' },
+  { value: '120', label: '2 minutos', icon: 'clock' }
+]
+
+function pokerLabel(o: PokerOptions): string {
   const time = o.minutes === 0 ? 'sem limite de tempo' : `${o.minutes} minutos`
   return `${o.mode === 'tres' ? 'Rápido, 3 cartas' : "Hold'em"}, ${time}, ${o.buy === 'torneio' ? 'torneio' : 'recompra'}`
 }
 
-/** Painel dos jogos: opções para abrir a mesa e, depois, o lobby com as cadeiras. */
+function golfLabel(o: GolfOptions): string {
+  const map = MAPS.find((m) => m.id === o.mapId)
+  const holes = map ? `${map.name} (${map.holes.length} buracos)` : 'mapa'
+  return `${holes}, ${o.collisions ? 'bolas batem' : 'bolas passam'}, ${o.holeSeconds} s por buraco`
+}
+
+export const gameTitle = (id: GameId): string => (id === 'golf' ? 'Golfe' : 'Mesa de Poker')
+
+/** Painel dos jogos: escolher o jogo e as opções e, depois, o lobby com as vagas. */
 export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props) {
-  const [opts, setOpts] = useState<PokerOptions>(DEFAULT_OPTIONS)
+  const [pick, setPick] = useState<GameId>('poker')
+  const [poker, setPoker] = useState<PokerOptions>(DEFAULT_OPTIONS)
+  const [golf, setGolf] = useState<GolfOptions>(DEFAULT_GOLF_OPTIONS)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -55,13 +88,15 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
   }, [onClose])
 
   const mine = lobby?.seats.find((s) => s.you)
-  const options = (lobby?.options ?? opts) as PokerOptions
+  const isGolf = lobby?.gameId === 'golf'
+  const label = lobby ? (isGolf ? golfLabel(lobby.options as GolfOptions) : pokerLabel(lobby.options as PokerOptions)) : ''
+  const where = isGolf ? 'a partida' : 'a mesa'
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal games-panel" role="dialog" aria-modal="true" aria-labelledby="games-title">
         <div className="games-head">
-          <h2 id="games-title">{lobby ? 'Mesa de Poker' : 'Jogos'}</h2>
+          <h2 id="games-title">{lobby ? gameTitle(lobby.gameId) : 'Jogos'}</h2>
           <button className="icon-btn" onClick={onClose} aria-label="Fechar" data-tip="Fechar" data-tip-pos="left">
             <Icon name="x" size={20} />
           </button>
@@ -69,57 +104,101 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
 
         {!lobby ? (
           <>
-            <p className="muted games-lead">
-              Poker facilitado para 2 a 8 pessoas. Os botões já mostram o valor e o jogo explica quem ganhou.
-            </p>
             <div className="games-options">
               <div className="games-opt">
-                <span>Modo</span>
-                <Dropdown
-                  icon="cards"
-                  ariaLabel="Modo de jogo"
-                  value={opts.mode}
-                  options={MODES}
-                  onChange={(v) => setOpts({ ...opts, mode: v === 'tres' ? 'tres' : 'holdem' })}
-                />
-              </div>
-              <div className="games-opt">
-                <span>Duração</span>
-                <Dropdown
-                  icon="clock"
-                  ariaLabel="Duração da partida"
-                  value={String(opts.minutes)}
-                  options={MINUTES}
-                  onChange={(v) => setOpts({ ...opts, minutes: ([0, 15, 30, 45].includes(Number(v)) ? Number(v) : 30) as PokerOptions['minutes'] })}
-                />
-              </div>
-              <div className="games-opt">
-                <span>Fichas</span>
-                <Dropdown
-                  icon="plus"
-                  ariaLabel="Recompra ou torneio"
-                  value={opts.buy}
-                  options={BUYS}
-                  onChange={(v) => setOpts({ ...opts, buy: v === 'torneio' ? 'torneio' : 'recompra' })}
-                />
+                <span>Jogo</span>
+                <Dropdown icon={pick === 'golf' ? 'flag' : 'cards'} ariaLabel="Jogo" value={pick} options={GAMES} onChange={(v) => setPick(v === 'golf' ? 'golf' : 'poker')} />
               </div>
             </div>
+            {pick === 'poker' ? (
+              <>
+                <p className="muted games-lead">
+                  Poker facilitado para 2 a 8 pessoas. Os botões já mostram o valor e o jogo explica quem ganhou.
+                </p>
+                <div className="games-options">
+                  <div className="games-opt">
+                    <span>Modo</span>
+                    <Dropdown
+                      icon="cards"
+                      ariaLabel="Modo de jogo"
+                      value={poker.mode}
+                      options={MODES}
+                      onChange={(v) => setPoker({ ...poker, mode: v === 'tres' ? 'tres' : 'holdem' })}
+                    />
+                  </div>
+                  <div className="games-opt">
+                    <span>Duração</span>
+                    <Dropdown
+                      icon="clock"
+                      ariaLabel="Duração da partida"
+                      value={String(poker.minutes)}
+                      options={MINUTES}
+                      onChange={(v) =>
+                        setPoker({ ...poker, minutes: ([0, 15, 30, 45].includes(Number(v)) ? Number(v) : 30) as PokerOptions['minutes'] })
+                      }
+                    />
+                  </div>
+                  <div className="games-opt">
+                    <span>Fichas</span>
+                    <Dropdown
+                      icon="plus"
+                      ariaLabel="Recompra ou torneio"
+                      value={poker.buy}
+                      options={BUYS}
+                      onChange={(v) => setPoker({ ...poker, buy: v === 'torneio' ? 'torneio' : 'recompra' })}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="muted games-lead">
+                  Mini-golfe para 1 a 8 pessoas, todo mundo no mesmo buraco ao mesmo tempo. Ganha quem somar menos tacadas.
+                </p>
+                <div className="games-options">
+                  <div className="games-opt">
+                    <span>Mapa</span>
+                    <Dropdown icon="flag" ariaLabel="Mapa" value={golf.mapId} options={MAP_OPTIONS} onChange={(v) => setGolf({ ...golf, mapId: v })} />
+                  </div>
+                  <div className="games-opt">
+                    <span>Bolas</span>
+                    <Dropdown
+                      icon="users"
+                      ariaLabel="Colisão entre bolas"
+                      value={golf.collisions ? 'sim' : 'nao'}
+                      options={COLLISIONS}
+                      onChange={(v) => setGolf({ ...golf, collisions: v === 'sim' })}
+                    />
+                  </div>
+                  <div className="games-opt">
+                    <span>Tempo</span>
+                    <Dropdown
+                      icon="clock"
+                      ariaLabel="Tempo por buraco"
+                      value={String(golf.holeSeconds)}
+                      options={HOLE_TIME}
+                      onChange={(v) => setGolf({ ...golf, holeSeconds: ([60, 90, 120].includes(Number(v)) ? Number(v) : 90) as HoleSeconds })}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
             <div className="modal-actions">
               <button onClick={onClose}>Agora não</button>
-              <button className="primary" onClick={() => api.open(opts)}>
-                Abrir mesa
+              <button className="primary" onClick={() => (pick === 'golf' ? api.open('golf', golf) : api.open('poker', poker))}>
+                {pick === 'golf' ? 'Abrir partida' : 'Abrir mesa'}
               </button>
             </div>
           </>
         ) : lobby.started ? (
           <>
             <p className="muted games-lead">
-              {lobby.openedBy} abriu a mesa. Partida em andamento: {modeLabel(options)}.
+              {lobby.openedBy} abriu {where}. Partida em andamento: {label}.
             </p>
             <div className="modal-actions">
               {lobby.canManage && (
                 <button className="danger" onClick={api.close}>
-                  Encerrar mesa
+                  {isGolf ? 'Encerrar partida' : 'Encerrar mesa'}
                 </button>
               )}
               {hasView && (
@@ -130,7 +209,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                     onClose()
                   }}
                 >
-                  Ver a mesa
+                  {isGolf ? 'Ver o campo' : 'Ver a mesa'}
                 </button>
               )}
             </div>
@@ -138,7 +217,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
         ) : (
           <>
             <p className="muted games-lead">
-              {lobby.openedBy} abriu a mesa: {modeLabel(options)}.
+              {lobby.openedBy} abriu {where}: {label}.
             </p>
             <ul className="games-seats">
               {Array.from({ length: lobby.maxPlayers }, (_, i) => {
@@ -157,7 +236,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                     ) : (
                       <button className="seat-free" onClick={() => api.sit(i)}>
                         <span className="seat-empty" aria-hidden="true" />
-                        Cadeira {i + 1} livre
+                        {isGolf ? `Vaga ${i + 1} livre` : `Cadeira ${i + 1} livre`}
                       </button>
                     )}
                   </li>
@@ -165,7 +244,9 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
               })}
             </ul>
             {lobby.seats.length < lobby.minPlayers && (
-              <p className="small muted">Precisa de pelo menos {lobby.minPlayers} pessoas sentadas para começar.</p>
+              <p className="small muted">
+                Precisa de pelo menos {lobby.minPlayers} {lobby.minPlayers === 1 ? 'pessoa' : 'pessoas'} {isGolf ? 'na partida' : 'sentadas'} para começar.
+              </p>
             )}
             <div className="modal-actions">
               {lobby.canManage && (
@@ -173,7 +254,11 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                   Encerrar
                 </button>
               )}
-              {mine ? <button onClick={api.stand}>Levantar</button> : <button onClick={() => api.sit()}>Sentar</button>}
+              {mine ? (
+                <button onClick={api.stand}>{isGolf ? 'Sair da partida' : 'Levantar'}</button>
+              ) : (
+                <button onClick={() => api.sit()}>{isGolf ? 'Entrar' : 'Sentar'}</button>
+              )}
               {lobby.canManage && (
                 <button className="primary" disabled={lobby.seats.length < lobby.minPlayers} onClick={api.start}>
                   Começar

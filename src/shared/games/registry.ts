@@ -1,10 +1,13 @@
+import { golfGame } from './golf'
 import { pokerGame } from './poker'
 import type { GameId } from './protocol'
 import type { AnyGame } from './types'
 
-export type GameRegistry = Record<GameId, AnyGame>
+/** Partial: os testes do GameHost registram só um jogo-teste. */
+export type GameRegistry = Partial<Record<GameId, AnyGame>>
 
 /** Jogos disponíveis na sala. O highcard (jogo-teste) fica só nos testes do GameHost. */
 export const GAMES: GameRegistry = {
-  poker: pokerGame
+  poker: pokerGame,
+  golf: golfGame
 }
