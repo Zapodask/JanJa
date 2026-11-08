@@ -7,7 +7,19 @@ import {
 } from '../../shared/control'
 import type { IceServer, PeerInfo, PeerState, SignalPayload } from '../../shared/protocol'
 import type { SignalingClient } from '../signaling'
-import { applyQuality, bitrateFor, pixelScale, type QualityPreset } from './quality'
+import { AUTO_LADDER, AUTO_START, AutoQuality, autoLevelPreset, type AutoReason, type AutoSample } from './autoQuality'
+import { HISTORY_SIZE, type DiagKind, type PeerDiag, type SendDiag } from './diag'
+import { DiagLog } from './diagLog'
+import { applyQuality, bitrateFor, isAuto, nativeSize, pixelScale, type QualityPreset } from './quality'
+import {
+  fmtPct,
+  readPair,
+  readStats,
+  type Counters,
+  type InboundStats,
+  type OutboundStats,
+  type StatRow
+} from './stats'
 
 export type Route = 'conectando' | 'direto' | 'relay' | 'falhou'
 
@@ -23,6 +35,8 @@ export interface PeerView {
   mic?: MediaStream
   /** webcam (só vídeo; a voz vem pelo mic) */
   cam?: MediaStream
+  /** recebimento da tela dessa pessoa: leitura atual e histórico */
+  diag: PeerDiag
 }
 
 interface Peer {
@@ -44,7 +58,18 @@ interface Peer {
   route: Route
   rttMs?: number
   inKbps?: number
-  lastBytes?: { bytes: number; at: number }
+  /** contadores da leitura anterior do getStats (tela dessa pessoa) */
+  counters?: Counters
+  /** identifica as trilhas de tela lidas; se mudar, os contadores recomeçam */
+  trackKey?: string
+  inbound?: InboundStats
+  outbound?: OutboundStats
+  history: InboundStats[]
+  outHistory: OutboundStats[]
+  /** último momento (performance.now) de cada tipo de evento, para não poluir o diário */
+  lastEvent: Map<string, number>
+  lastBand?: number
+  lastRoute?: Route
   /**
    * Quem já estava na sala só envia mídia depois de responder a primeira oferta de quem entrou.
    * Sem isso os dois lados oferecem ao mesmo tempo e, na colisão, candidatos ICE se perdem.
@@ -56,6 +81,24 @@ interface Peer {
 
 const ICE_WATCHDOG_MS = 12_000
 const CAM_BITRATE = 450_000
+/** no máximo um evento do mesmo tipo por pessoa neste intervalo */
+const EVENT_GAP_MS = 20_000
+const LOSS_EVENT_PCT = 3
+const TICK_MIN_GAP_MS = 1_500
+
+/** Faixa de altura da imagem recebida: 0 = até 480p ... 4 = 1440p ou mais. */
+function heightBand(h: number): number {
+  return h >= 1300 ? 4 : h >= 900 ? 3 : h >= 600 ? 2 : h >= 400 ? 1 : 0
+}
+const BAND_LABEL = ['360p', '480p', '720p', '1080p', '1440p']
+
+const REASON_TEXT: Record<AutoReason, string> = {
+  folga: 'sobrou banda',
+  perda: 'pacotes se perdendo',
+  banda: 'upload no limite',
+  cpu: 'o PC não está dando conta',
+  fps: 'a imagem saiu com poucos quadros'
+}
 
 /**
  * Mesh WebRTC: um RTCPeerConnection por peer remoto, com "perfect negotiation"
@@ -70,8 +113,15 @@ export class PeerManager {
   private micStream?: MediaStream
   private screenStream?: MediaStream
   private camStream?: MediaStream
+  /** preset efetivo; em modo automático é montado do nível atual */
   private preset?: QualityPreset
+  /** presente só no modo automático */
+  private auto?: AutoQuality
+  private lastTickAt = 0
+  private polling = false
   private statsTimer: number
+  /** diário de eventos da conexão */
+  readonly log = new DiagLog()
 
   constructor(
     private readonly signaling: SignalingClient,
@@ -107,6 +157,7 @@ export class PeerManager {
         route: p.route,
         rttMs: p.rttMs,
         inKbps: p.inKbps,
+        diag: { inbound: p.inbound, history: p.history.slice() },
         screen: p.state.sharing ? streams.find(isScreen) : undefined,
         mic: streams.find((s) => !isScreen(s) && !isCam(s)),
         cam: camId ? streams.find(isCam) : undefined
@@ -140,6 +191,9 @@ export class PeerManager {
       senders: new Map(),
       streams: new Map(),
       route: 'conectando',
+      history: [],
+      outHistory: [],
+      lastEvent: new Map(),
       ready: initiator
     }
     this.peers.set(peer.id, peer)
@@ -246,6 +300,8 @@ export class PeerManager {
   setRemoteState(id: string, state: PeerState): void {
     const peer = this.peers.get(id)
     if (!peer) return
+    if (peer.state.sharing !== state.sharing)
+      this.log.push({ kind: 'tela', who: peer.name, text: `${peer.name} ${state.sharing ? 'começou a compartilhar a tela' : 'parou de compartilhar a tela'}` })
     peer.state = state
     this.emit()
   }
@@ -306,7 +362,8 @@ export class PeerManager {
   startScreen(stream: MediaStream, preset: QualityPreset): void {
     this.stopScreen()
     this.screenStream = stream
-    this.preset = preset
+    this.useRequested(preset, stream.getVideoTracks()[0])
+    if (this.auto) this.log.push({ kind: 'info', text: `Qualidade automática ligada em ${AUTO_LADDER[this.auto.level].label}` })
     for (const peer of this.peers.values()) if (peer.ready) this.addStreamTo(peer, stream)
   }
 
@@ -314,7 +371,11 @@ export class PeerManager {
     const stream = this.screenStream
     if (!stream) return
     this.screenStream = undefined
-    for (const peer of this.peers.values()) this.removeStreamFrom(peer, stream)
+    for (const peer of this.peers.values()) {
+      this.removeStreamFrom(peer, stream)
+      peer.outbound = undefined
+      peer.outHistory = []
+    }
     for (const t of stream.getTracks()) t.stop()
   }
 
@@ -335,15 +396,28 @@ export class PeerManager {
     if (release) for (const t of stream.getTracks()) t.stop()
   }
 
+  /** `AUTO_PRESET` liga o modo automático; um preset fixo desliga. */
   setPreset(preset: QualityPreset): void {
-    this.preset = preset
     const video = this.screenStream?.getVideoTracks()[0]
+    this.useRequested(preset, video)
     if (video) {
       // o bitrate depende do tamanho final: aplica depois que a trilha mudou
-      void applyQuality(video, preset).then(() => this.reapplyAllBitrates())
+      void applyQuality(video, this.preset!).then(() => this.reapplyAllBitrates())
       return
     }
     this.reapplyAllBitrates()
+  }
+
+  /** O que eu estou enviando (só quando compartilho a tela). */
+  sendDiag(): SendDiag | undefined {
+    const video = this.screenStream?.getVideoTracks()[0]
+    if (!video) return undefined
+    const preset = this.preset
+    const levelLabel = this.auto ? AUTO_LADDER[this.auto.level].label : preset ? `${preset.height}p ${preset.fps}` : ''
+    const viewers = [...this.peers.values()]
+      .filter((p) => p.senders.has(video.id))
+      .map((p) => ({ id: p.id, name: p.name, out: p.outbound, history: p.outHistory.slice() }))
+    return { mode: this.auto ? 'auto' : 'fixo', levelLabel, viewers }
   }
 
   dispose(): void {
@@ -360,6 +434,22 @@ export class PeerManager {
   }
 
   // ---------------- internos ----------------
+
+  /** Liga ou desliga o modo automático conforme o preset pedido e define o preset efetivo. */
+  private useRequested(preset: QualityPreset, video?: MediaStreamTrack): void {
+    if (!isAuto(preset)) {
+      this.auto = undefined
+      this.preset = preset
+      return
+    }
+    // 1440p só se a tela nativa tiver 1440 de altura ou mais
+    const nativeH = video ? nativeSize(video).height ?? 0 : 0
+    const maxLevel = nativeH >= 1440 ? 4 : 3
+    if (this.auto) this.auto.setMaxLevel(maxLevel)
+    else this.auto = new AutoQuality({ start: AUTO_START, maxLevel })
+    this.lastTickAt = 0
+    this.preset = autoLevelPreset(this.auto.level)
+  }
 
   private signal(to: string, payload: SignalPayload): void {
     this.signaling.send({ type: 'signal', to, payload })
@@ -453,45 +543,162 @@ export class PeerManager {
     }
   }
 
+  /** Evento do diário, no máximo um por tipo e pessoa a cada EVENT_GAP_MS. Devolve se entrou. */
+  private note(peer: Peer, key: string, kind: DiagKind, text: string, now: number): boolean {
+    const k = `${key}:${peer.id}`
+    const last = peer.lastEvent.get(k)
+    if (last !== undefined && now - last < EVENT_GAP_MS) return false
+    peer.lastEvent.set(k, now)
+    this.log.push({ kind, who: peer.name, text })
+    return true
+  }
+
+  private watchReceive(peer: Peer, inbound: InboundStats, now: number): void {
+    if (inbound.lossPct !== undefined && inbound.lossPct >= LOSS_EVENT_PCT)
+      this.note(peer, 'perda', 'perda', `Perdendo pacotes da tela de ${peer.name} (${fmtPct(inbound.lossPct)})`, now)
+    if (inbound.freezes > 0) this.note(peer, 'travada', 'travada', `A imagem de ${peer.name} travou`, now)
+    if (inbound.height) {
+      const band = heightBand(inbound.height)
+      if (peer.lastBand === undefined) peer.lastBand = band
+      else if (band !== peer.lastBand) {
+        const up = band > peer.lastBand
+        // só atualiza a referência quando o evento entra; senão reporta depois, se continuar diferente
+        if (this.note(peer, 'res', up ? 'up' : 'down', `A imagem de ${peer.name} ${up ? 'subiu' : 'desceu'} para ${BAND_LABEL[band]}`, now)) peer.lastBand = band
+      }
+    }
+  }
+
+  private watchRoute(peer: Peer, route: Route, now: number): void {
+    const before = peer.lastRoute
+    peer.lastRoute = route
+    if (route === before) return
+    if (route === 'relay') this.note(peer, 'rota', 'relay', `A conexão com ${peer.name} passou a usar o relay`, now)
+    else if (route === 'direto') this.note(peer, 'rota', 'direto', `A conexão com ${peer.name} é direta`, now)
+  }
+
+  private watchSend(peer: Peer, out: OutboundStats, now: number): void {
+    if (out.limitation === 'cpu') this.note(peer, 'cpu', 'cpu', 'Seu PC está no limite para codificar a tela', now)
+    else if (out.limitation === 'bandwidth') this.note(peer, 'banda', 'banda', `Seu upload para ${peer.name} está no limite`, now)
+  }
+
   private async pollStats(): Promise<void> {
+    if (this.polling) return
+    this.polling = true
+    try {
+      await this.readAll()
+    } finally {
+      this.polling = false
+    }
+  }
+
+  private async readAll(): Promise<void> {
     let changed = false
-    for (const peer of this.peers.values()) {
+    const screenTrack = this.screenStream?.getVideoTracks()[0]
+    const samples: AutoSample[] = []
+    for (const peer of [...this.peers.values()]) {
       this.watchdog(peer)
       if (peer.pc.connectionState !== 'connected') continue
       const report = await peer.pc.getStats()
-      let pairId: string | undefined
-      let inBytes = 0
-      report.forEach((s) => {
-        if (s.type === 'transport' && s.selectedCandidatePairId) pairId = s.selectedCandidatePairId
-        if (s.type === 'inbound-rtp' && s.kind === 'video') inBytes += s.bytesReceived ?? 0
-      })
-      if (!pairId) {
-        report.forEach((s) => {
-          if (s.type === 'candidate-pair' && s.nominated && s.state === 'succeeded') pairId = s.id
-        })
-      }
-      const pair = pairId ? report.get(pairId) : undefined
-      const local = pair ? report.get(pair.localCandidateId) : undefined
-      const remote = pair ? report.get(pair.remoteCandidateId) : undefined
-      const route: Route =
-        local?.candidateType === 'relay' || remote?.candidateType === 'relay' ? 'relay' : pair ? 'direto' : 'conectando'
-      const rtt = pair?.currentRoundTripTime !== undefined ? Math.round(pair.currentRoundTripTime * 1000) : undefined
-
+      if (!this.peers.has(peer.id)) continue
+      const rows: StatRow[] = []
+      report.forEach((s) => rows.push(s as StatRow))
       const now = performance.now()
-      let kbps: number | undefined
-      if (peer.lastBytes && inBytes >= peer.lastBytes.bytes) {
-        kbps = Math.round(((inBytes - peer.lastBytes.bytes) * 8) / (now - peer.lastBytes.at))
-      }
-      peer.lastBytes = { bytes: inBytes, at: now }
 
-      if (route !== peer.route || rtt !== peer.rttMs || kbps !== peer.inKbps) {
-        peer.route = route
-        peer.rttMs = rtt
-        peer.inKbps = inBytes > 0 ? kbps : undefined
+      // tela dela: a trilha de vídeo do stream de tela recebido (a câmera fica de fora)
+      const inIds = new Set<string>()
+      if (peer.state.sharing) {
+        for (const s of this.screenStreamsOf(peer)) for (const t of s.getVideoTracks()) inIds.add(t.id)
+      }
+      // minha tela: a fonte de mídia da minha trilha (e o mid do transceiver, para navegadores sem media-source)
+      const sender = screenTrack ? peer.senders.get(screenTrack.id) : undefined
+      const sourceIds = new Set<string>()
+      if (screenTrack) for (const r of rows) if (r.type === 'media-source' && r.trackIdentifier === screenTrack.id) sourceIds.add(r.id)
+      const mid = sender ? peer.pc.getTransceivers().find((t) => t.sender === sender)?.mid ?? undefined : undefined
+      const key = `${[...inIds].join(',')}|${sender ? (screenTrack?.id ?? '') : ''}`
+      if (key !== peer.trackKey) {
+        peer.trackKey = key
+        peer.counters = undefined
+        peer.history = []
+        peer.outHistory = []
+        peer.inbound = undefined
+        peer.outbound = undefined
+      }
+
+      const res = readStats(rows, peer.counters, now, {
+        inTrack: (r) => inIds.size > 0 && (typeof r.trackIdentifier !== 'string' || inIds.has(r.trackIdentifier)),
+        outTrack: (r) => !!sender && (sourceIds.has(r.mediaSourceId as string) || (!!mid && r.mid === mid))
+      })
+      peer.counters = res.counters
+      const pair = readPair(rows)
+
+      if (pair.route !== peer.route || pair.rttMs !== peer.rttMs || res.inbound?.kbps !== peer.inKbps) changed = true
+      peer.route = pair.route
+      peer.rttMs = pair.rttMs
+      peer.inKbps = res.inbound?.kbps
+      this.watchRoute(peer, pair.route, now)
+
+      peer.inbound = res.inbound
+      if (res.inbound) {
+        peer.history.push(res.inbound)
+        if (peer.history.length > HISTORY_SIZE) peer.history.shift()
+        this.watchReceive(peer, res.inbound, now)
+        changed = true
+      }
+      // o Chrome diz "bandwidth" enquanto o encoder ainda está subindo, mesmo com banda folgada:
+      // só vale como limite de verdade se a estimativa estiver abaixo de 75% do teto (mesma regra do automático)
+      if (res.outbound?.limitation === 'bandwidth' && screenTrack) {
+        const cap = this.capKbps(screenTrack)
+        if (cap !== undefined && res.outbound.availableKbps !== undefined && res.outbound.availableKbps >= 0.75 * cap)
+          res.outbound = { ...res.outbound, limitation: 'none' }
+      }
+      peer.outbound = res.outbound
+      if (res.outbound) {
+        peer.outHistory.push(res.outbound)
+        if (peer.outHistory.length > HISTORY_SIZE) peer.outHistory.shift()
+        this.watchSend(peer, res.outbound, now)
+        const o = res.outbound
+        samples.push({ availableKbps: o.availableKbps, lossPct: o.lossPct, limitation: o.limitation, fps: o.fps, kbps: o.kbps })
         changed = true
       }
     }
+
+    this.tickAuto(samples, screenTrack)
     if (changed) this.emit()
+  }
+
+  /** Streams de tela de um peer (mesma regra de views()). */
+  private screenStreamsOf(peer: Peer): MediaStream[] {
+    const camId = peer.state.camStreamId
+    return [...peer.streams.values()].filter(
+      (s) => s.getVideoTracks().length > 0 && (s.id === peer.state.screenStreamId || !(camId && s.id === camId))
+    )
+  }
+
+  /** Teto de bitrate da tela por conexão, em kbps (o mesmo que applyBitrate configura). */
+  private capKbps(video: MediaStreamTrack): number | undefined {
+    if (!this.preset) return undefined
+    const { width, height } = video.getSettings()
+    return bitrateFor(this.preset, this.peers.size, pixelScale(this.preset, width, height)) / 1000
+  }
+
+  /** Modo automático: decide o nível com a pior conexão e aplica. */
+  private tickAuto(samples: AutoSample[], video?: MediaStreamTrack): void {
+    const auto = this.auto
+    if (!auto || !video || !this.preset) return
+    const now = performance.now()
+    if (now - this.lastTickAt < TICK_MIN_GAP_MS) return
+    this.lastTickAt = now
+    const capKbps = this.capKbps(video) ?? 0
+    const d = auto.tick(samples, now, capKbps)
+    if (!d.changed) return
+    const preset = autoLevelPreset(d.level)
+    this.preset = preset
+    const label = AUTO_LADDER[d.level].label
+    this.log.push({
+      kind: d.dir === 'up' ? 'up' : 'down',
+      text: `Qualidade ${d.dir === 'up' ? 'subiu' : 'desceu'} para ${label}: ${REASON_TEXT[d.reason ?? 'perda']}`
+    })
+    void applyQuality(video, preset).then(() => this.reapplyAllBitrates())
   }
 }
 

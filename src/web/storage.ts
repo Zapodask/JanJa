@@ -92,15 +92,11 @@ export interface Prefs {
   /** música da mesa de jogo e o volume dela (0..1) */
   musicOn: boolean
   musicVolume: number
-  /** compartilhar a tela com o som do navegador junto (tem eco: a voz dos amigos volta para eles) */
-  shareBrowserAudio: boolean
-  /** chat do canal aberto ao lado da tela ou recolhido */
-  chatMode: 'coluna' | 'fechado'
 }
 
 const DEFAULT_PREFS: Prefs = {
   micMuted: true,
-  presetId: 'jogo',
+  presetId: 'auto',
   approval: true,
   sinkId: 'default',
   volumes: {},
@@ -111,9 +107,7 @@ const DEFAULT_PREFS: Prefs = {
   tourAnswer: 'ask',
   homeTourDone: 0,
   musicOn: true,
-  musicVolume: 0.35,
-  shareBrowserAudio: false,
-  chatMode: 'coluna'
+  musicVolume: 0.35
 }
 
 // compatibilidade com a chave antiga de aprovação
@@ -122,10 +116,23 @@ function legacy(): Partial<Prefs> {
   return approval ? { approval: approval !== 'false' } : {}
 }
 
+/**
+ * Migração única: antes o preset era salvo sozinho ao compartilhar (não era escolha consciente).
+ * Na primeira vez com o automático, todo mundo passa para ele; depois a escolha da pessoa vale.
+ */
+function migrateAuto(prefs: Prefs): Prefs {
+  if (load('qualityAutoV1')) return prefs
+  save('qualityAutoV1', '1')
+  if (prefs.presetId === 'auto') return prefs
+  const next = { ...prefs, presetId: 'auto' }
+  saveJson('prefs', next)
+  return next
+}
+
 let cache: Prefs | undefined
 
 export function getPrefs(): Prefs {
-  cache ??= { ...DEFAULT_PREFS, ...legacy(), ...loadJson<Partial<Prefs>>('prefs', {}) }
+  cache ??= migrateAuto({ ...DEFAULT_PREFS, ...legacy(), ...loadJson<Partial<Prefs>>('prefs', {}) })
   return cache
 }
 
@@ -144,8 +151,6 @@ export const volumeKey = (kind: 'mic' | 'screen', name: string): string => `${ki
 
 export interface RecentRoom {
   roomId: string
-  /** nome da sala ("servidor"); salas antigas não têm */
-  name?: string
   /** quem estava na sala da última vez (para reconhecer) */
   people: string[]
   host: boolean
