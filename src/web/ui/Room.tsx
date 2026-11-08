@@ -560,7 +560,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
   const effectiveSink = outputs.some((d) => d.deviceId === sinkId) ? sinkId : 'default'
   useEffect(() => setSoundSink(effectiveSink), [effectiveSink])
 
-  // atalhos: M = mic, C = câmera, F = tela cheia, Esc = sair do foco
+  // atalhos: M = mic, C = câmera, F = tela cheia, Ctrl+Alt+S = sinal, Esc = sair do foco
   const tilesRef = useRef(tiles)
   tilesRef.current = tiles
   const tableModeRef = useRef(tableMode)
@@ -577,20 +577,22 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
       if (t && (/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t.closest('[role="listbox"]'))) return
-      if (e.ctrlKey || e.metaKey || e.altKey) return
       if (tourActive()) return
       if (controlling) return // as teclas vão para o PC controlado
+      // Ctrl+Alt+S abre o sinal. Pelo `code` (tecla física): no teclado ABNT2, Ctrl+Alt vira AltGr e muda o `key`.
+      // Não é S sozinho porque o S anda para baixo no Tiro na Sala.
+      if (e.ctrlKey && e.altKey && !e.metaKey && !e.shiftKey && e.code === 'KeyS') {
+        e.preventDefault()
+        setSignalOpen((o) => !o)
+        return
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return
       if (panelOpenRef.current) return
       const k = e.key.toLowerCase()
       // o painel do sinal fica por cima do palco: o Esc fecha ele antes da câmera maximizada
       if (k === 'escape' && signalRef.current) {
         e.preventDefault()
         setSignalOpen(false)
-        return
-      }
-      if (k === 's') {
-        e.preventDefault()
-        setSignalOpen((o) => !o)
         return
       }
       if (k === 'escape' && pinnedRef.current && !document.fullscreenElement) {
@@ -1252,7 +1254,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
             data-tour="signal"
             className={`icon-btn sig-btn h-${health} ${signalOpen ? 'open' : ''}`}
             onClick={() => setSignalOpen((o) => !o)}
-            data-tip="Sinal da conexão (S)"
+            data-tip="Sinal da conexão (Ctrl+Alt+S)"
             aria-label="Sinal da conexão"
             aria-pressed={signalOpen}
           >
