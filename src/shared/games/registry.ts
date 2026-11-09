@@ -6,6 +6,7 @@ import { navalGame } from './naval'
 import { pokerGame } from './poker'
 import { poolGame } from './pool'
 import { shooterGame } from './shooter'
+import { stopGame } from './stop'
 import { trucoGame } from './truco'
 import { tycoonGame } from './tycoon'
 import type { GameId } from './protocol'
@@ -25,5 +26,6 @@ export const GAMES: GameRegistry = {
   shooter: shooterGame,
   naval: navalGame,
   mystery: mysteryGame,
-  pool: poolGame
+  pool: poolGame,
+  stop: stopGame
 }

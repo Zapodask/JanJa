@@ -6,6 +6,8 @@ import { DEFAULT_GOLF_OPTIONS, type GolfOptions, type HoleSeconds } from '../../
 import { DEFAULT_OPTIONS, type PokerOptions } from '../../shared/games/poker/types'
 import { DEFAULT_NAVAL_OPTIONS, type NavalOptions } from '../../shared/games/naval/types'
 import type { GameId, GameLobby } from '../../shared/games/protocol'
+import { CATEGORIES, categoryName, DEFAULT_CATEGORIES } from '../../shared/games/stop/categories'
+import type { StopOptions, StopRounds, StopSeconds } from '../../shared/games/stop/types'
 import { DEFAULT_SHOOTER_OPTIONS, KILL_LIMITS, MATCH_MINUTES, MAX_BOTS, type ShooterOptions } from '../../shared/games/shooter/types'
 import { DEFAULT_TRUCO_OPTIONS, type TrucoOptions, type TrucoPlayers } from '../../shared/games/truco/types'
 import { DEFAULT_TYCOON_OPTIONS, type TycoonMinutes, type TycoonOptions } from '../../shared/games/tycoon/types'
@@ -40,10 +42,11 @@ const GAMES: DropdownOption[] = [
   { value: 'shooter', label: 'Tiro na Sala', sub: 'Tiroteio pixel na casa, todo mundo contra todo mundo', icon: 'target' },
   { value: 'naval', label: 'Batalha naval', sub: 'Duas pessoas, cada uma com a sua frota', icon: 'anchor' },
   { value: 'mystery', label: 'Mistério', sub: 'Descubra quem roubou o quadro, de 2 a 6', icon: 'search' },
-  { value: 'pool', label: 'Sinuca', sub: 'Bola 8, uma pessoa contra a outra', icon: 'eight' }
+  { value: 'pool', label: 'Sinuca', sub: 'Bola 8, uma pessoa contra a outra', icon: 'eight' },
+  { value: 'stop', label: 'Stop', sub: 'Adedonha: uma letra, todo mundo escreve junto', icon: 'pencil' }
 ]
 
-const GAME_ICON: Record<GameId, 'cards' | 'flag' | 'pawn' | 'checker' | 'dice' | 'sword' | 'target' | 'anchor' | 'search' | 'eight'> = {
+const GAME_ICON: Record<GameId, 'cards' | 'flag' | 'pawn' | 'checker' | 'dice' | 'sword' | 'target' | 'anchor' | 'search' | 'eight' | 'pencil'> = {
   poker: 'cards',
   golf: 'flag',
   chess: 'pawn',
@@ -53,8 +56,18 @@ const GAME_ICON: Record<GameId, 'cards' | 'flag' | 'pawn' | 'checker' | 'dice' |
   shooter: 'target',
   naval: 'anchor',
   mystery: 'search',
-  pool: 'eight'
+  pool: 'eight',
+  stop: 'pencil'
 }
+
+const STOP_ROUND_OPTIONS: DropdownOption[] = [3, 5, 8, 10].map((n) => ({ value: String(n), label: `${n} rodadas`, sub: n === 5 ? 'Padrão' : undefined, icon: 'grid' }))
+const STOP_TIME: DropdownOption[] = [
+  { value: '60', label: '1 minuto', icon: 'clock' },
+  { value: '90', label: '1 minuto e meio', icon: 'clock' },
+  { value: '120', label: '2 minutos', sub: 'Padrão', icon: 'clock' },
+  { value: '180', label: '3 minutos', icon: 'clock' },
+  { value: '0', label: 'Sem tempo', sub: 'Só para no STOP', icon: 'clock' }
+]
 
 const NAVAL_MODES: DropdownOption[] = [
   { value: 'classico', label: 'Clássico', sub: 'Um tiro por vez; acertou, joga de novo', icon: 'focus' },
@@ -146,7 +159,7 @@ function chessLabel(o: ChessOptions): string {
   return o.minutes === 0 ? 'sem relógio' : `${o.minutes} minutos para cada um`
 }
 
-const TITLES: Record<GameId, string> = { poker: 'Mesa de Poker', golf: 'Golfe', chess: 'Xadrez', checkers: 'Damas', tycoon: 'Magnata', truco: 'Truco', shooter: 'Tiro na Sala', naval: 'Batalha naval', mystery: 'Mistério', pool: 'Sinuca' }
+const TITLES: Record<GameId, string> = { poker: 'Mesa de Poker', golf: 'Golfe', chess: 'Xadrez', checkers: 'Damas', tycoon: 'Magnata', truco: 'Truco', shooter: 'Tiro na Sala', naval: 'Batalha naval', mystery: 'Mistério', pool: 'Sinuca', stop: 'Stop' }
 export const gameTitle = (id: GameId): string => TITLES[id]
 
 function lobbyLabel(lobby: GameLobby): string {
@@ -154,6 +167,10 @@ function lobbyLabel(lobby: GameLobby): string {
   if (lobby.gameId === 'shooter') return shooterLabel(lobby.options as ShooterOptions)
   if (lobby.gameId === 'chess') return chessLabel(lobby.options as ChessOptions)
   if (lobby.gameId === 'checkers') return chessLabel(lobby.options as CheckersOptions)
+  if (lobby.gameId === 'stop') {
+    const o = lobby.options as StopOptions
+    return `${o.rounds} rodadas, ${o.seconds ? `${o.seconds} s cada` : 'sem tempo'}: ${o.categories.map(categoryName).join(', ')}`
+  }
   if (lobby.gameId === 'pool') return 'bola 8, lisas contra listradas'
   if (lobby.gameId === 'mystery') return 'o roubo do quadro no Casarão da Vila'
   if (lobby.gameId === 'naval') return (lobby.options as NavalOptions).mode === 'salva' ? 'modo salva' : 'modo clássico'
@@ -179,6 +196,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
   const [shooter, setShooter] = useState<ShooterOptions>(DEFAULT_SHOOTER_OPTIONS)
   const [truco, setTruco] = useState<TrucoOptions>(DEFAULT_TRUCO_OPTIONS)
   const [naval, setNaval] = useState<NavalOptions>(DEFAULT_NAVAL_OPTIONS)
+  const [stop, setStop] = useState<StopOptions>({ categories: [...DEFAULT_CATEGORIES], rounds: 5, seconds: 120 })
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -190,7 +208,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
 
   const mine = lobby?.seats.find((s) => s.you)
   // golfe, Magnata e tiro falam em "entrar na partida"; os jogos de mesa, em "sentar"
-  const joins = lobby?.gameId === 'golf' || lobby?.gameId === 'tycoon' || lobby?.gameId === 'shooter'
+  const joins = lobby?.gameId === 'golf' || lobby?.gameId === 'tycoon' || lobby?.gameId === 'shooter' || lobby?.gameId === 'stop'
   const isChess = lobby?.gameId === 'chess' || lobby?.gameId === 'checkers'
   const label = lobby ? lobbyLabel(lobby) : ''
   const where = joins || isChess ? 'a partida' : 'a mesa'
@@ -215,7 +233,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                   ariaLabel="Jogo"
                   value={pick}
                   options={GAMES}
-                  onChange={(v) => setPick(v === 'golf' || v === 'chess' || v === 'checkers' || v === 'tycoon' || v === 'truco' || v === 'shooter' || v === 'naval' || v === 'mystery' || v === 'pool' ? v : 'poker')}
+                  onChange={(v) => setPick(v === 'golf' || v === 'chess' || v === 'checkers' || v === 'tycoon' || v === 'truco' || v === 'shooter' || v === 'naval' || v === 'mystery' || v === 'pool' || v === 'stop' ? v : 'poker')}
                 />
               </div>
             </div>
@@ -307,6 +325,55 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
                     />
                   </div>
                 </div>
+              </>
+            ) : pick === 'stop' ? (
+              <>
+                <p className="muted games-lead">
+                  Stop para 2 a 10 pessoas. Sorteia uma letra, todo mundo preenche as categorias e quem terminar grita STOP. Resposta
+                  única vale 10, repetida vale 5.
+                </p>
+                <div className="games-options">
+                  <div className="games-opt">
+                    <span>Rodadas</span>
+                    <Dropdown
+                      icon="grid"
+                      ariaLabel="Rodadas"
+                      value={String(stop.rounds)}
+                      options={STOP_ROUND_OPTIONS}
+                      onChange={(v) => setStop({ ...stop, rounds: ([3, 5, 8, 10].includes(Number(v)) ? Number(v) : 5) as StopRounds })}
+                    />
+                  </div>
+                  <div className="games-opt">
+                    <span>Tempo</span>
+                    <Dropdown
+                      icon="clock"
+                      ariaLabel="Tempo de cada rodada"
+                      value={String(stop.seconds)}
+                      options={STOP_TIME}
+                      onChange={(v) => setStop({ ...stop, seconds: ([0, 60, 90, 120, 180].includes(Number(v)) ? Number(v) : 120) as StopSeconds })}
+                    />
+                  </div>
+                </div>
+                <div className="sp-cats" role="group" aria-label="Categorias">
+                  {CATEGORIES.map((c) => {
+                    const on = stop.categories.includes(c.id)
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className={`sp-cat ${on ? 'on' : ''}`}
+                        aria-pressed={on}
+                        disabled={on && stop.categories.length <= 3}
+                        onClick={() =>
+                          setStop({ ...stop, categories: CATEGORIES.map((x) => x.id).filter((id) => (id === c.id ? !on : stop.categories.includes(id))) })
+                        }
+                      >
+                        {c.name}
+                      </button>
+                    )
+                  })}
+                </div>
+                <small className="muted">Pelo menos 3 categorias.</small>
               </>
             ) : pick === 'pool' ? (
               <p className="muted games-lead">
@@ -446,7 +513,7 @@ export function GamesPanel({ lobby, hasView, api, onClose, onShowTable }: Props)
             )}
             <div className="modal-actions">
               <button onClick={onClose}>Agora não</button>
-              <button className="primary" onClick={() => api.open(pick, pick === 'golf' ? golf : pick === 'chess' ? chess : pick === 'checkers' ? checkers : pick === 'tycoon' ? tycoon : pick === 'truco' ? truco : pick === 'shooter' ? shooter : pick === 'naval' ? naval : pick === 'mystery' || pick === 'pool' ? {} : poker)}>
+              <button className="primary" onClick={() => api.open(pick, pick === 'golf' ? golf : pick === 'chess' ? chess : pick === 'checkers' ? checkers : pick === 'tycoon' ? tycoon : pick === 'truco' ? truco : pick === 'shooter' ? shooter : pick === 'naval' ? naval : pick === 'mystery' || pick === 'pool' ? {} : pick === 'stop' ? stop : poker)}>
                 {pick === 'poker' ? 'Abrir mesa' : 'Abrir partida'}
               </button>
             </div>

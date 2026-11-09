@@ -61,5 +61,5 @@ describe('Magnata: partidas aleatórias', () => {
     }
     // o jogo acaba de vários jeitos, não só no tempo
     expect(Object.keys(reasons).length).toBeGreaterThan(2)
-  }, 30_000) // partidas inteiras: pesado de propósito; com a suíte em paralelo passa dos 5 s padrão
+  })
 })

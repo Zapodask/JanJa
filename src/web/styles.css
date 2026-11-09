@@ -800,6 +800,51 @@ button.my-card { --bg: var(--paper); --bg-h: #fff; --bd: var(--rug); --bd-h: var
 .pl-player small { color: var(--dust); }
 .pl-balls { display: flex; gap: 1px; }
 .pl-balls svg { image-rendering: pixelated; }
+
+/* Stop: a letra, os campos e a conferência */
+.sp-scene { position: relative; width: 100%; height: 100%; overflow: auto; background: var(--wall); display: grid; grid-template-columns: 220px 1fr; gap: 24px; padding: 20px; box-sizing: border-box; }
+.sp-side { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.sp-letter { width: 132px; height: 132px; display: grid; place-items: center; font-size: 96px; line-height: 1; color: var(--wall); background: var(--lamp); border-radius: 12px; box-shadow: inset 0 -8px 0 #E0A92E, 0 10px 24px rgba(0, 0, 0, 0.45); animation: sp-pop 0.4s var(--ease) both; }
+@keyframes sp-pop { from { transform: scale(0.4) rotate(-12deg); opacity: 0; } }
+.sp-players { list-style: none; margin: 8px 0 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 4px; }
+.sp-players li { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: var(--r-ctl); background: var(--sofa); }
+.sp-players li.me { outline: 1px solid var(--lamp); }
+.sp-pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-progress { display: flex; gap: 2px; }
+.sp-progress i { width: 6px; height: 10px; border-radius: 1px; background: var(--rug); }
+.sp-progress i.on { background: var(--on); }
+.sp-main { min-width: 0; }
+.sp-writing { display: flex; flex-direction: column; gap: 12px; max-width: 760px; }
+.sp-banner { padding: 10px 14px; border-radius: var(--r-panel); background: var(--off); color: var(--wall); font-size: 20px; animation: sp-pop 0.25s var(--ease) both; }
+.sp-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; align-items: start; }
+.sp-field { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: var(--r-panel); background: var(--sofa); border: 1px solid var(--rug); }
+.sp-field span { font-size: 13px; color: var(--dust); }
+.sp-field input { font-size: 18px; padding: 8px 10px; border-radius: var(--r-ctl); border: 1px solid var(--rug); background: var(--wall); color: var(--paper); }
+.sp-field.ok { border-color: var(--on); }
+.sp-field.bad { border-color: var(--off); }
+.sp-field small { color: var(--off); font-size: 12px; }
+.sp-stop { grid-column: 1 / -1; height: 56px; font-size: 26px; }
+.sp-review { display: flex; flex-direction: column; gap: 12px; }
+.sp-table-wrap { overflow-x: auto; }
+.sp-table { border-collapse: separate; border-spacing: 4px; font-size: 14px; }
+.sp-table th { color: var(--dust); font-weight: 500; text-align: left; padding: 4px 8px; white-space: nowrap; }
+.sp-table th.me { color: var(--lamp); }
+.sp-table td { background: var(--sofa); border-radius: var(--r-ctl); padding: 6px 8px; min-width: 120px; vertical-align: top; }
+.sp-table td.unique { box-shadow: inset 3px 0 0 var(--on); }
+.sp-table td.shared { box-shadow: inset 3px 0 0 var(--lamp); }
+.sp-table td.invalid .sp-answer, .sp-table td.nofit .sp-answer { text-decoration: line-through; color: var(--dust); }
+.sp-answer { display: block; font-weight: 600; }
+.sp-pts { float: right; margin-left: 8px; color: var(--lamp); }
+.sp-votes { display: block; color: var(--off); font-size: 12px; }
+.sp-vote { --bg: var(--wall); --bg-h: var(--rug); height: 24px; padding: 0 8px; font-size: 12px; margin-top: 4px; }
+.sp-vote.on { --bg: var(--off); --bg-h: var(--off); --fg: var(--wall); }
+.sp-total { color: var(--lamp); font-size: 16px; }
+.sp-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.sp-cats { display: flex; flex-wrap: wrap; gap: 6px; }
+.sp-cat { --bg: var(--wall); --bg-h: var(--rug); height: 32px; padding: 0 12px; font-size: 13px; }
+.sp-cat.on { --bg: var(--lamp); --bg-h: var(--lamp-hi); --fg: var(--wall); }
+@media (max-width: 800px) { .sp-scene { grid-template-columns: 1fr; } .sp-side { flex-direction: row; flex-wrap: wrap; } .sp-letter { width: 80px; height: 80px; font-size: 56px; } }
+@media (prefers-reduced-motion: reduce) { .sp-letter, .sp-banner { animation: none; } }
 .hand-ex { color: var(--paper); }
 .hand-hint { grid-column: 2; color: var(--dust); font-size: 13px; }
 

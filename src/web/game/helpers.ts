@@ -6,6 +6,7 @@ import type { GolfEvent } from '../../shared/games/golf/types'
 import type { MysteryEvent } from '../../shared/games/mystery/types'
 import type { NavalEvent } from '../../shared/games/naval/types'
 import type { PoolEvent } from '../../shared/games/pool/types'
+import type { StopEvent } from '../../shared/games/stop/types'
 import type { TrucoEvent } from '../../shared/games/truco/types'
 import type { TycoonEvent } from '../../shared/games/tycoon/types'
 import type { Card, LegalAction, PokerAction, PokerEvent, PokerMode, PokerView } from '../../shared/games/poker/types'
@@ -308,6 +309,29 @@ export function poolSfxForEvent(ev: PoolEvent): SfxCue | null {
 export function poolTrackForEvent(ev: PoolEvent): MusicTrack | null {
   if (ev.type === 'start') return 'calma'
   if (ev.type === 'groups') return 'tensao'
+  if (ev.type === 'end') return 'vitoria'
+  return null
+}
+
+/** Som de um evento do Stop: letra nova, o grito, a conferência e os pontos. */
+export function stopSfxForEvent(ev: StopEvent): SfxCue | null {
+  switch (ev.type) {
+    case 'round':
+      return { name: 'shuffle' }
+    case 'stop':
+      return { name: 'allin' }
+    case 'review':
+      return { name: 'flip' }
+    case 'scores':
+      return { name: 'win' }
+    case 'end':
+      return { name: 'podium' }
+  }
+}
+
+export function stopTrackForEvent(ev: StopEvent): MusicTrack | null {
+  if (ev.type === 'round') return 'tensao'
+  if (ev.type === 'review') return 'calma'
   if (ev.type === 'end') return 'vitoria'
   return null
 }

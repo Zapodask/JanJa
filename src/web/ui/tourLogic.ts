@@ -90,7 +90,7 @@ export const ROOM_STEPS: TourStep[] = [
     selector: t('games'),
     side: 'top',
     title: 'Jogos',
-    text: 'Joguem poker, truco, sinuca, batalha naval, Mistério, mini-golfe, xadrez, damas ou Magnata sem sair da chamada. Abra um jogo e os amigos recebem o convite.'
+    text: 'Joguem poker, truco, sinuca, Stop, batalha naval, Mistério, mini-golfe, xadrez, damas ou Magnata sem sair da chamada. Abra um jogo e os amigos recebem o convite.'
   },
   { id: 'done', title: 'Pronto', text: 'Dá para rever este tour no botão ? da barra lateral.' }
 ]
