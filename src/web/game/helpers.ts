@@ -313,6 +313,14 @@ export function poolTrackForEvent(ev: PoolEvent): MusicTrack | null {
 }
 
 /** Nível de ducking (0..1) a partir do maior nível de voz da sala. */
+/**
+ * A música da partida toca para quem joga (sentado) e para quem assiste com a mesa aberta.
+ * Quem está só na sala (voz, tela compartilhada, mesa fechada) não ouve.
+ */
+export function wantsGameMusic(o: { seated: boolean; watching: boolean; started: boolean; musicOn: boolean }): boolean {
+  return o.started && o.musicOn && (o.seated || o.watching)
+}
+
 export const duckFromLevel = (level: number): number => Math.max(0, Math.min(1, (level - 0.03) * 5))
 
 // ---------- textos ----------

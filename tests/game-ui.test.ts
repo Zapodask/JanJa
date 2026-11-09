@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { gameReducer, initialGameState, meOf } from '../src/web/game/state'
 import {
+  wantsGameMusic,
   actionButtons,
   cardName,
   describeForScreenReader,
@@ -165,5 +166,18 @@ describe('textos e convite', () => {
     expect(sameRects([r], [{ ...r }])).toBe(true)
     expect(sameRects([r], [{ ...r, w: 5 }])).toBe(false)
     expect(sameRects([r], [])).toBe(false)
+  })
+})
+
+describe('música da partida', () => {
+  const base = { seated: false, watching: false, started: true, musicOn: true }
+  it('toca para quem joga e para quem assiste com a mesa aberta', () => {
+    expect(wantsGameMusic({ ...base, seated: true })).toBe(true)
+    expect(wantsGameMusic({ ...base, watching: true })).toBe(true)
+  })
+  it('não toca para quem só está na sala, antes de começar ou com a música desligada', () => {
+    expect(wantsGameMusic(base)).toBe(false)
+    expect(wantsGameMusic({ ...base, watching: true, started: false })).toBe(false)
+    expect(wantsGameMusic({ ...base, watching: true, musicOn: false })).toBe(false)
   })
 })

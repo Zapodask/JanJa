@@ -1422,6 +1422,7 @@ export function Room({ roomId, name, hostKey, onLeave, onOpenRoom }: Props) {
         <GameAudioDriver
           gameId={game.lobby.gameId}
           seated={seated}
+          watching={tableMode}
           started={game.lobby.started}
           lastEvents={game.lastEvents}
           sceneSfx={sceneSfx}
