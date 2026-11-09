@@ -18,6 +18,7 @@ import {
   chessSfxForEvent,
   chessTrackForEvent,
   duckFromLevel,
+  wantsGameMusic,
   mysterySfxForEvent,
   mysteryTrackForEvent,
   navalSfxForEvent,
@@ -70,6 +71,8 @@ function trackFor(gameId: GameId, ev: unknown): MusicTrack | null {
 interface Props {
   gameId: GameId
   seated: boolean
+  /** a mesa está aberta na tela (quem assiste também ouve a música) */
+  watching: boolean
   started: boolean
   lastEvents: RawEventBatch | null
   /** sons pedidos pela cena (golfe: água, tabela, buraco); `n` sobe a cada um */
@@ -100,7 +103,7 @@ function Probe({ id, stream, muted, onLevel }: MicProbe & { onLevel: (id: string
  * Cuida do áudio da mesa: cria o GameAudio (lazy) depois do primeiro gesto, liga a música para quem está
  * sentado, toca os sfx dos eventos e abaixa a música quando alguém fala. Não desenha nada.
  */
-export function GameAudioDriver({ gameId, seated, started, lastEvents, sceneSfx, soundsOn, musicOn, musicVolume, inviteSeq, sfxBus, track, mics }: Props) {
+export function GameAudioDriver({ gameId, seated, watching, started, lastEvents, sceneSfx, soundsOn, musicOn, musicVolume, inviteSeq, sfxBus, track, mics }: Props) {
   const audio = useRef<GameAudio | null>(null)
   const [ready, setReady] = useState(false)
   const [gesture, setGesture] = useState(false)
@@ -133,8 +136,8 @@ export function GameAudioDriver({ gameId, seated, started, lastEvents, sceneSfx,
     }
   }, [gesture])
 
-  // música só para quem está sentado numa partida em andamento
-  const wantMusic = seated && started && musicOn
+  // música para quem joga ou assiste com a mesa aberta, numa partida em andamento
+  const wantMusic = wantsGameMusic({ seated, watching, started, musicOn })
   useEffect(() => {
     const a = audio.current
     if (!ready || !a) return
